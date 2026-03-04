@@ -1,4 +1,4 @@
-package com.mindrevol.core.common.enitty;
+package com.mindrevol.core.common.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
@@ -26,13 +26,13 @@ public abstract class BaseEntity {
 
     @Id
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id; // Đổi String thành UUID
+    private String id; // Đổi String thành UUID
 
     @PrePersist
     public void generateId() {
         if (this.id == null) {
             // Lưu trực tiếp object UUID, không ép sang chuỗi nữa
-            this.id = UuidCreator.getTimeOrderedEpoch(); 
+            this.id = UuidCreator.getTimeOrderedEpoch().toString();
         }
     }
 
