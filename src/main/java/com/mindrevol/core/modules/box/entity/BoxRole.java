@@ -1,4 +1,4 @@
-package com.mindrevol.core.module.box.entity;
+package com.mindrevol.core.modules.box.entity;
 
 public enum BoxRole {
     ADMIN,   // Chủ phòng (Owner)

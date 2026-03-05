@@ -1,7 +1,8 @@
-package com.mindrevol.core.module.box.entity;
+package com.mindrevol.core.modules.box.entity;
 
 import com.mindrevol.core.common.enitty.BaseEntity; // Lưu ý package BaseEntity có typo 'enitty' theo code cũ của bạn
-import com.mindrevol.core.module.user.entity.User;
+import com.mindrevol.core.modules.journey.entity.Journey;
+import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -40,4 +41,8 @@ public class Box extends BaseEntity {
     @OneToMany(mappedBy = "box", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<BoxMember> members = new ArrayList<>();
+
+    @OneToMany(mappedBy = "box")
+    @Builder.Default
+    private List<com.mindrevol.core.modules.journey.entity.Journey> journeys = new ArrayList<>();
 }
