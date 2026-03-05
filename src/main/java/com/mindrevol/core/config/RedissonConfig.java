@@ -5,10 +5,12 @@ import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.redisson.config.SingleServerConfig;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@ConditionalOnProperty(name = "spring.data.redis.host")
 public class RedissonConfig {
 
     @Value("${spring.data.redis.host:localhost}")
@@ -17,7 +19,7 @@ public class RedissonConfig {
     @Value("${spring.data.redis.port:6379}")
     private String redisPort;
 
-    @Value("${spring.data.redis.password}")
+    @Value("${spring.data.redis.password:}")
     private String redisPassword;
 
     @Value("${spring.data.redis.ssl.enabled:false}")
