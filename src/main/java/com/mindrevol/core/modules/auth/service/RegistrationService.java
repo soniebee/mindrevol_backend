@@ -10,6 +10,7 @@ import com.mindrevol.core.modules.user.repository.RoleRepository;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,9 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -31,10 +35,15 @@ public class RegistrationService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final JwtService jwtService;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
+
+    // Fallback storage when Redis is not available
+    private final ConcurrentHashMap<String, RegisterTempData> inMemoryStorage = new ConcurrentHashMap<>();
 
     private static final String REGISTER_TEMP_KEY_PREFIX = "register:temp:";
     private static final long OTP_EXPIRATION_MINUTES = 15;
@@ -111,21 +120,21 @@ public class RegistrationService {
         String redisKey = REGISTER_TEMP_KEY_PREFIX + email;
 
         // Lấy dữ liệu tạm từ Redis
-        RegisterTempData tempData = (RegisterTempData) redisTemplate.opsForValue().get(redisKey);
+        RegisterTempData tempData = getTempData(redisKey);
         if (tempData == null) {
             throw new BadRequestException("Phiên đăng ký đã hết hạn. Vui lòng thử lại từ đầu");
         }
 
         // Kiểm tra số lần thử
         if (tempData.getOtpAttempts() >= MAX_OTP_ATTEMPTS) {
-            redisTemplate.delete(redisKey);
+            deleteTempData(redisKey);
             throw new BadRequestException("Bạn đã nhập sai OTP quá nhiều lần. Vui lòng đăng ký lại");
         }
 
         // Kiểm tra OTP
         if (!request.getOtpCode().equals(tempData.getOtpCode())) {
             tempData.setOtpAttempts(tempData.getOtpAttempts() + 1);
-            redisTemplate.opsForValue().set(redisKey, tempData, OTP_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+            saveTempData(redisKey, tempData);
 
             int remainingAttempts = MAX_OTP_ATTEMPTS - tempData.getOtpAttempts();
             throw new BadRequestException("Mã OTP không chính xác. Còn " + remainingAttempts + " lần thử");
@@ -136,7 +145,7 @@ public class RegistrationService {
         userRepository.save(newUser);
 
         // Xóa dữ liệu tạm trong Redis
-        redisTemplate.delete(redisKey);
+        deleteTempData(redisKey);
 
         // Tạo JWT Token
         String accessToken = jwtService.generateAccessToken(newUser);
@@ -174,7 +183,7 @@ public class RegistrationService {
         String redisKey = REGISTER_TEMP_KEY_PREFIX + email;
 
         // Lấy dữ liệu tạm từ Redis
-        RegisterTempData tempData = (RegisterTempData) redisTemplate.opsForValue().get(redisKey);
+        RegisterTempData tempData = getTempData(redisKey);
         if (tempData == null) {
             throw new BadRequestException("Phiên đăng ký đã hết hạn. Vui lòng thử lại từ đầu");
         }
@@ -185,7 +194,7 @@ public class RegistrationService {
         tempData.setOtpAttempts(0); // Reset số lần thử
 
         // Lưu lại vào Redis
-        redisTemplate.opsForValue().set(redisKey, tempData, OTP_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+        saveTempData(redisKey, tempData);
 
         // Gửi OTP mới qua email
         emailService.sendOtpEmail(email, newOtpCode, tempData.getFullname());
@@ -194,6 +203,49 @@ public class RegistrationService {
     }
 
     // ============ PRIVATE HELPER METHODS ============
+
+    /**
+     * Save temp data to Redis or in-memory storage
+     */
+    private void saveTempData(String redisKey, RegisterTempData tempData) {
+        if (redisTemplate != null) {
+            redisTemplate.opsForValue().set(redisKey, tempData, OTP_EXPIRATION_MINUTES, TimeUnit.MINUTES);
+        } else {
+            log.warn("Redis not available, using in-memory storage (data will be lost on restart)");
+            tempData.setExpiryTime(System.currentTimeMillis() + (OTP_EXPIRATION_MINUTES * 60 * 1000));
+            inMemoryStorage.put(redisKey, tempData);
+        }
+    }
+
+    /**
+     * Get temp data from Redis or in-memory storage
+     */
+    private RegisterTempData getTempData(String redisKey) {
+        if (redisTemplate != null) {
+            return (RegisterTempData) redisTemplate.opsForValue().get(redisKey);
+        } else {
+            RegisterTempData tempData = inMemoryStorage.get(redisKey);
+            if (tempData != null) {
+                // Check if expired
+                if (System.currentTimeMillis() > tempData.getExpiryTime()) {
+                    inMemoryStorage.remove(redisKey);
+                    return null;
+                }
+            }
+            return tempData;
+        }
+    }
+
+    /**
+     * Delete temp data from Redis or in-memory storage
+     */
+    private void deleteTempData(String redisKey) {
+        if (redisTemplate != null) {
+            redisTemplate.delete(redisKey);
+        } else {
+            inMemoryStorage.remove(redisKey);
+        }
+    }
 
     /**
      * Tạo mã OTP 6 số ngẫu nhiên
@@ -252,7 +304,7 @@ public class RegistrationService {
      */
     private UserDto mapToUserDto(User user) {
         return UserDto.builder()
-                .id(user.getId())
+                .id(UUID.fromString(user.getId()))
                 .email(user.getEmail())
                 .handle(user.getHandle())
                 .fullname(user.getFullname())

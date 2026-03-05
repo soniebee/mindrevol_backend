@@ -39,5 +39,7 @@ public class RegisterTempData implements Serializable {
     private int otpAttempts; // Số lần nhập sai OTP
 
     private long createdAt; // Timestamp tạo
+
+    private long expiryTime; // Timestamp hết hạn (for in-memory storage)
 }
 
