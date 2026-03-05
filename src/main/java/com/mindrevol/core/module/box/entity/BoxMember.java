@@ -1,0 +1,31 @@
+package com.mindrevol.core.module.box.entity;
+
+import com.mindrevol.core.common.enitty.BaseEntity;
+import com.mindrevol.core.module.user.entity.User;
+import jakarta.persistence.*;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.SQLRestriction;
+
+@Entity
+@Table(name = "box_members", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"box_id", "user_id"})
+})
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
+@SuperBuilder
+@SQLRestriction("deleted_at IS NULL")
+public class BoxMember extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "box_id", nullable = false)
+    private Box box;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private BoxRole role;
+}
