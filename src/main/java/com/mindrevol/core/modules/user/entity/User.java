@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 @Where(clause = "deleted_at IS NULL") 
 public class User extends BaseEntity implements UserDetails {
 
+    // [UUID] ID kế thừa từ BaseEntity (String)
+
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
@@ -94,20 +96,32 @@ public class User extends BaseEntity implements UserDetails {
     @Builder.Default
     private Set<SocialAccount> socialAccounts = new HashSet<>();
 
+    // --- [NEW] CÁC TRƯỜNG CHO SUBSCRIPTION ---
+
     @Enumerated(EnumType.STRING)
     @Column(name = "account_type", nullable = false)
     @Builder.Default
     private AccountType accountType = AccountType.FREE;
 
+    // Ngày hết hạn gói VIP (Null nếu là FREE hoặc vĩnh viễn)
     @Column(name = "subscription_expiry_date")
     private LocalDateTime subscriptionExpiryDate;
 
+    /**
+     * Logic kiểm tra xem User có phải là VIP (GOLD) và còn hạn sử dụng hay không.
+     */
     public boolean isPremium() {
+        // 1. Phải là loại tài khoản GOLD (hoặc cao hơn)
         if (this.accountType != AccountType.GOLD && this.accountType != AccountType.PLATINUM) {
             return false;
         }
+        // 2. Nếu ngày hết hạn là null -> Coi như vĩnh viễn (hoặc lỗi, tùy logic, ở đây mình coi là chưa kích hoạt)
+        // Nhưng logic an toàn: Gold mà null date thì check logic nạp tiền.
+        // Ở đây ta quy định: Đã là GOLD thì phải có ExpiryDate hợp lệ.
         return this.subscriptionExpiryDate != null && this.subscriptionExpiryDate.isAfter(LocalDateTime.now());
     }
+
+    // -----------------------------------------
 
     @Version
     private Long version;

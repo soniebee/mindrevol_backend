@@ -13,7 +13,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.UUID; // Dùng UUID chuẩn của Java
 
 @MappedSuperclass
 @Getter
