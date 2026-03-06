@@ -1,6 +1,6 @@
 package com.mindrevol.core.modules.box.entity;
 
-import com.mindrevol.core.common.enitty.BaseEntity;
+import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;

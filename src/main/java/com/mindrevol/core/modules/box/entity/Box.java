@@ -1,7 +1,6 @@
 package com.mindrevol.core.modules.box.entity;
 
-import com.mindrevol.core.common.enitty.BaseEntity; // Lưu ý package BaseEntity có typo 'enitty' theo code cũ của bạn
-import com.mindrevol.core.modules.journey.entity.Journey;
+import com.mindrevol.core.common.entity.BaseEntity; // Lưu ý package BaseEntity có typo 'enitty' theo code cũ của bạn
 import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;

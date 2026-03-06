@@ -1,6 +1,6 @@
-package com.mindrevol.core.module.user.repo;
+package com.mindrevol.core.modules.user.repo;
 
-import com.mindrevol.core.module.user.entity.User;
+import com.mindrevol.core.modules.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

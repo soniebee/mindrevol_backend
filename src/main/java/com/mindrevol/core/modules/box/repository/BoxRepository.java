@@ -8,11 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.UUID;
-
 @Repository
-
-public interface BoxRepository extends JpaRepository<Box, UUID> {
+public interface BoxRepository extends JpaRepository<Box, String> {
 
     // Tìm các Box mà User là thành viên và sắp xếp theo hoạt động mới nhất
     @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId ORDER BY b.lastActivityAt DESC")
