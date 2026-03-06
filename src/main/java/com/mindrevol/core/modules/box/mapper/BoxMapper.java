@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class BoxMapper {
 
+    // 1. Chuyển Request thành Entity
     public Box toEntity(CreateBoxRequest request) {
         return Box.builder()
                 .name(request.getName())
@@ -18,10 +19,10 @@ public class BoxMapper {
                 .build();
     }
 
+    // 2. Chuyển Entity sang DTO danh sách (Gán thẳng UUID)
     public BoxResponse toResponse(Box box, long memberCount) {
         return BoxResponse.builder()
-                // Thêm .toString() ở đây để chuyển UUID thành String
-                .id(box.getId() != null ? box.getId().toString() : null)
+                .id(box.getId()) // Trực tiếp gán UUID
                 .name(box.getName())
                 .avatar(box.getAvatar())
                 .themeSlug(box.getThemeSlug())
@@ -30,10 +31,10 @@ public class BoxMapper {
                 .build();
     }
 
+    // 3. Chuyển Entity sang DTO chi tiết (Gán thẳng UUID)
     public BoxDetailResponse toDetailResponse(Box box, long memberCount, String myRole) {
         return BoxDetailResponse.builder()
-                // Thêm .toString() ở đây
-                .id(box.getId() != null ? box.getId().toString() : null)
+                .id(box.getId()) // Trực tiếp gán UUID
                 .name(box.getName())
                 .description(box.getDescription())
                 .themeSlug(box.getThemeSlug())

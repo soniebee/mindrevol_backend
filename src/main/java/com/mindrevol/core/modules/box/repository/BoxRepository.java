@@ -1,4 +1,4 @@
-package com.mindrevol.core.modules.box.repo;
+package com.mindrevol.core.modules.box.repository;
 
 import com.mindrevol.core.modules.box.entity.Box;
 import org.springframework.data.domain.Page;
