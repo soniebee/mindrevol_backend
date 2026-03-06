@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.user.entity;
 
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.auth.entity.SocialAccount;

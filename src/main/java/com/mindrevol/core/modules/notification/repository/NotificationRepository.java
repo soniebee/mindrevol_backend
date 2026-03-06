@@ -23,7 +23,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.recipient.id = :userId")
     void deleteAllByRecipientId(@Param("userId") String userId);
-    
+
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.isRead = true AND n.createdAt < :cutoffDate")
     void deleteOldReadNotifications(@Param("cutoffDate") java.time.LocalDateTime cutoffDate);
