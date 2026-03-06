@@ -40,7 +40,8 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter authenticationJwtTokenFilter;
     private final CustomAuthenticationEntryPoint unauthorizedHandler;
-    private final RateLimitFilter rateLimitFilter;
+    @Autowired(required = false)
+    private RateLimitFilter rateLimitFilter;
 
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
@@ -108,21 +109,29 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable);
 
         http.authenticationProvider(authenticationProvider());
-        http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        if (rateLimitFilter != null) {
+            http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        }
         http.addFilterBefore(authenticationJwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    // ... (Phần CorsConfigurationSource giữ nguyên không đổi) ...
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        
+        // Lấy danh sách origins từ properties hoặc dùng mặc định
         if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
             configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         } else {
-            configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+            configuration.setAllowedOrigins(Arrays.asList(
+                "https://mindrevol.vercel.app",
+                "https://mindrevol-web.vercel.app",
+                "http://localhost:5173"
+            ));
         }
+        
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With", "Accept", "X-Rate-Limit-Remaining", "Retry-After", "Apikey"));
         configuration.setAllowCredentials(true);
