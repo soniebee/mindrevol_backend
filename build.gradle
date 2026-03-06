@@ -85,6 +85,8 @@ dependencies {
     
     implementation 'com.google.http-client:google-http-client-gson:1.43.3'
     
+    implementation 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
+
     implementation 'org.liquibase:liquibase-core'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
