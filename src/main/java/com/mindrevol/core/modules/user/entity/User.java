@@ -1,19 +1,5 @@
 package com.mindrevol.core.modules.user.entity;
 
-<<<<<<< HEAD
-import com.mindrevol.core.common.entity.BaseEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.experimental.SuperBuilder;
-
-@Entity
-@Table(name = "users")
-=======
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.auth.entity.SocialAccount;
@@ -32,24 +18,18 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
->>>>>>> feature/user
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-<<<<<<< HEAD
-@SuperBuilder
-public class User extends BaseEntity {
-}
-=======
 @Builder
 @Entity
 @Table(name = "users", indexes = {
-        @Index(name = "idx_user_email", columnList = "email"),
-        @Index(name = "idx_user_handle", columnList = "handle")
+    @Index(name = "idx_user_email", columnList = "email"),
+    @Index(name = "idx_user_handle", columnList = "handle")
 })
 @SQLDelete(sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-@Where(clause = "deleted_at IS NULL")
+@Where(clause = "deleted_at IS NULL") 
 public class User extends BaseEntity implements UserDetails {
 
     // [UUID] ID kế thừa từ BaseEntity (String)
@@ -71,7 +51,7 @@ public class User extends BaseEntity implements UserDetails {
 
     @Column(nullable = false, length = 100)
     private String fullname;
-
+    
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
@@ -87,27 +67,27 @@ public class User extends BaseEntity implements UserDetails {
     @Column(length = 20)
     @Builder.Default
     private String authProvider = "LOCAL";
-
+    
     @Column(name = "fcm_token")
     private String fcmToken;
-
+    
     @Column(nullable = false, length = 50)
     @Builder.Default
-    private String timezone = "UTC";
-
+    private String timezone = "UTC"; 
+    
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private Gender gender;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
+        name = "user_roles",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
-
+    
     @Column(columnDefinition = "bigint default 0")
     @Builder.Default
     private Long points = 0L;
@@ -164,4 +144,3 @@ public class User extends BaseEntity implements UserDetails {
     @Override
     public boolean isEnabled() { return this.status == UserStatus.ACTIVE; }
 }
->>>>>>> feature/user
