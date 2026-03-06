@@ -1,4 +1,4 @@
-package com.mindrevol.core.modules.box.repo;
+package com.mindrevol.core.modules.box.repository;
 
 import com.mindrevol.core.modules.box.entity.Box;
 import org.springframework.data.domain.Page;
@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Repository
 
-public interface BoxRepository extends JpaRepository<Box, UUID> {
+public interface BoxRepository extends JpaRepository<Box, String> {
 
     // Tìm các Box mà User là thành viên và sắp xếp theo hoạt động mới nhất
     @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId ORDER BY b.lastActivityAt DESC")
