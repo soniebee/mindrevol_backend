@@ -1,4 +1,4 @@
-package com.mindrevol.core.modules.chat.dto.reponse;
+package com.mindrevol.core.modules.chat.dto.response;
 
 import com.mindrevol.core.modules.chat.entity.MessageDeliveryStatus;
 import com.mindrevol.core.modules.chat.entity.MessageType;
