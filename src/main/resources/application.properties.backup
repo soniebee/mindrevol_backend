@@ -1,0 +1,8 @@
+spring.application.name=mindrevol-backend-core
+
+# ========================================
+# ACTIVE PROFILE
+# ========================================
+# Options: dev (H2), prod (PostgreSQL)
+spring.profiles.active=dev
+

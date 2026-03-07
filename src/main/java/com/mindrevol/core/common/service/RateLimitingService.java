@@ -7,12 +7,14 @@ import io.github.bucket4j.Refill;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.function.Supplier;
 
 @Service
+@ConditionalOnProperty(name = "app.rate-limiting.enabled", havingValue = "true", matchIfMissing = false)
 @RequiredArgsConstructor
 public class RateLimitingService {
 
