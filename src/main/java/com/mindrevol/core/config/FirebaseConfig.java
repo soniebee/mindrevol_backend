@@ -4,17 +4,21 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
-import org.springframework.beans.factory.annotation.Value; // <--- Import
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 
-import java.io.ByteArrayInputStream; // <--- Import
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets; // <--- Import
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
+@Slf4j
 @Configuration
+@ConditionalOnProperty(name = "firebase.enabled", havingValue = "true", matchIfMissing = false)
 public class FirebaseConfig {
 
     // Inject biến môi trường chứa nội dung file JSON (đã mã hóa Base64 để tránh lỗi ký tự xuống dòng)
