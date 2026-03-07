@@ -26,7 +26,6 @@ import com.mindrevol.core.modules.journey.repository.JourneyRepository;
 import com.mindrevol.core.modules.storage.service.FileStorageService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserBlockRepository;
-import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -57,7 +56,6 @@ public class CheckinServiceImpl implements CheckinService {
     private final CheckinRepository checkinRepository;
     private final JourneyRepository journeyRepository;
     private final JourneyParticipantRepository participantRepository;
-    private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final CheckinMapper checkinMapper;
 

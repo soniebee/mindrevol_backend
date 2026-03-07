@@ -26,7 +26,7 @@ public class UpdateProfileRequest {
     private String website;
 
     private String avatarUrl;
-
+    
     private String timezone;
 
     // --- Bổ sung ---

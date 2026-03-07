@@ -25,16 +25,16 @@
 //        Configuration config = Utils.getSystemConfig(
 //            getApplicationContext() // Một cách trick nhỏ để lấy context, hoặc đơn giản tự set tay
 //        );
-//        
+//
 //        // Set cấu hình thủ công để đảm bảo chính xác
 //        config.setUrlEndpoint(urlEndpoint);
 //        config.setPublicKey(publicKey);
 //        config.setPrivateKey(privateKey);
-//        
+//
 //        imageKit.setConfig(config);
 //        return imageKit;
 //    }
-//    
+//
 //    // Helper method giả lập context (vì SDK ImageKit yêu cầu param này nhưng không thực sự dùng sâu)
 //    private String getApplicationContext() {
 //        return "mindrevol-app";

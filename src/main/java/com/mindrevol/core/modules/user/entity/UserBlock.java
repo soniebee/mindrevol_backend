@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.user.entity;
 
+
 import com.mindrevol.core.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;

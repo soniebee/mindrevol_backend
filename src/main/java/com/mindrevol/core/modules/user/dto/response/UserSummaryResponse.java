@@ -19,5 +19,5 @@ public class UserSummaryResponse {
     // -------------------------
     private boolean isOnline;
     private LocalDateTime lastActiveAt;
-    private String friendshipStatus;
+    private String friendshipStatus; 
 }

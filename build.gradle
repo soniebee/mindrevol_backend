@@ -62,6 +62,9 @@ dependencies {
 
     runtimeOnly 'org.postgresql:postgresql'
 
+    // H2 in-memory database for development (optional)
+    runtimeOnly 'com.h2database:h2'
+
     compileOnly 'org.projectlombok:lombok'
     
     annotationProcessor 'org.projectlombok:lombok'

@@ -19,7 +19,7 @@ public interface JourneyParticipantRepository extends JpaRepository<JourneyParti
     // Lấy tất cả lịch sử tham gia (cả cũ và mới)
     @Query("SELECT jp FROM JourneyParticipant jp JOIN FETCH jp.journey WHERE jp.user.id = :userId ORDER BY jp.lastCheckinAt DESC")
     List<JourneyParticipant> findAllByUserId(@Param("userId") String userId);
-
+    
     // Lấy danh sách đang active (để hiển thị UI) - Logic hiển thị có thể lỏng hơn logic đếm
     @Query("SELECT jp FROM JourneyParticipant jp " +
             "JOIN FETCH jp.journey j " +
@@ -32,9 +32,9 @@ public interface JourneyParticipantRepository extends JpaRepository<JourneyParti
     List<JourneyParticipant> findAllByJourneyId(String journeyId);
 
     boolean existsByJourneyIdAndUserId(String journeyId, String userId);
-
+    
     Optional<JourneyParticipant> findByJourneyIdAndUserId(String journeyId, String userId);
-
+    
     long countByJourneyId(String journeyId);
 
     // [FIX QUAN TRỌNG] Chỉ đếm hành trình ACTIVE thực sự để tính limit
@@ -43,11 +43,11 @@ public interface JourneyParticipantRepository extends JpaRepository<JourneyParti
     // 2. Chưa bị xóa mềm (deletedAt IS NULL)
     // 3. (Quan trọng) Ngày kết thúc phải chưa qua (endDate IS NULL hoặc endDate >= today)
     @Query("SELECT COUNT(jp) FROM JourneyParticipant jp " +
-            "JOIN jp.journey j " +
-            "WHERE jp.user.id = :userId " +
-            "AND j.status IN ('ONGOING', 'UPCOMING') " +
-            "AND j.deletedAt IS NULL " +
-            "AND (j.endDate IS NULL OR j.endDate >= :today)")
+           "JOIN jp.journey j " +
+           "WHERE jp.user.id = :userId " +
+           "AND j.status IN ('ONGOING', 'UPCOMING') " +
+           "AND j.deletedAt IS NULL " +
+           "AND (j.endDate IS NULL OR j.endDate >= :today)")
     long countActiveByUserId(@Param("userId") String userId, @Param("today") LocalDate today);
 
     // Hàm job nhắc nhở (giữ nguyên)

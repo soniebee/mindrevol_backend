@@ -12,7 +12,7 @@ import java.util.Set;
 @Setter
 @Builder
 public class UserProfileResponse {
-
+    
     private String id; // [UUID] String
     private String email;
     private String handle;
@@ -26,7 +26,7 @@ public class UserProfileResponse {
     private long followerCount; // Có thể ẩn nếu chưa dùng
     private long followingCount; // Có thể ẩn nếu chưa dùng
     private boolean isFollowedByCurrentUser; // Logic follow (nếu có)
-    private long friendCount;
+    private long friendCount; 
 
     // --- CÁC TRƯỜNG MỚI CHO TÍNH NĂNG XEM PROFILE ---
     private FriendshipStatus friendshipStatus; // NONE, PENDING, ACCEPTED, DECLINED
