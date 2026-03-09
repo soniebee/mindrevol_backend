@@ -13,7 +13,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,7 +29,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -78,9 +76,28 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // 1. PUBLIC ENDPOINTS
+                // 1. PUBLIC ENDPOINTS - Auth & Registration
                 .requestMatchers(
-                        "/api/v1/auth/**",
+                        // Registration wizard endpoints
+                        "/api/v1/auth/register/**",
+                        "/api/v1/auth/check-email",
+                        "/api/v1/auth/check-handle",
+                        "/api/v1/auth/send-otp",
+                        "/api/v1/auth/verify-otp",
+                        "/api/v1/auth/resend-otp",
+                        "/api/v1/auth/complete",
+                        // Login endpoints
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/login/**",
+                        "/api/v1/auth/refresh-token",
+                        // Password reset endpoints
+                        "/api/v1/auth/forgot-password",
+                        "/api/v1/auth/verify-reset-otp",
+                        "/api/v1/auth/reset-password"
+                ).permitAll()
+
+                // 2. PUBLIC ENDPOINTS - Others
+                .requestMatchers(
                         "/uploads/**",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
@@ -90,7 +107,7 @@ public class SecurityConfig {
                         "/api/v1/plans/{shareableLink}/public",
                         "/actuator/health",
                         "/api/v1/payment/webhook",
-                        "/actuator/prometheus" // Vẫn giữ public ở đây
+                        "/actuator/prometheus"
                 ).permitAll()
 
                 .requestMatchers(
@@ -99,7 +116,15 @@ public class SecurityConfig {
                         "/swagger-ui.html"
                     ).permitAll()
 
-                // 2. SECURED API ENDPOINTS
+                // 3. AUTHENTICATED ENDPOINTS - Auth & Session Management
+                .requestMatchers(
+                        "/api/v1/auth/logout",
+                        "/api/v1/auth/change-password",
+                        "/api/v1/auth/session",
+                        "/api/v1/auth/session/**"
+                ).authenticated()
+
+                // 4. SECURED API ENDPOINTS
                 .requestMatchers("/api/v1/**").authenticated()
                 .requestMatchers(HttpMethod.OPTIONS).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/files/upload").authenticated()

@@ -1,71 +1,29 @@
 package com.mindrevol.core.modules.auth.service;
 
-import com.mindrevol.core.modules.auth.dto.request.*;
-import com.mindrevol.core.modules.auth.dto.response.*;
-import com.mindrevol.core.modules.auth.entity.RegisterTempData;
+import com.mindrevol.core.modules.auth.dto.request.registration.RegisterRequest;
+import com.mindrevol.core.modules.auth.dto.request.ResendRegisterOtpRequest;
+import com.mindrevol.core.modules.auth.dto.request.VerifyRegisterOtpRequest;
+import com.mindrevol.core.modules.auth.dto.response.JwtResponse;
+import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
+import jakarta.servlet.http.HttpServletRequest;
 
-/**
- * Interface Service xử lý các bước Registration Wizard
- */
 public interface RegistrationService {
 
-    /**
-     * Kiểm tra email đã tồn tại trong hệ thống chưa
-     */
-    AvailabilityResponse checkEmail(CheckEmailDto request);
+    // Bước 1: Validate thông tin & Gửi OTP qua email (Lưu tạm vào Redis)
+    void registerUserStep1(RegisterRequest request);
 
-    /**
-     * Kiểm tra handle đã tồn tại trong hệ thống chưa
-     */
-    AvailabilityResponse checkHandle(CheckHandleDto request);
+    // Bước 2: Xác thực OTP & Tạo User vào DB & Trả về Token
+    JwtResponse verifyRegisterOtp(VerifyRegisterOtpRequest request, HttpServletRequest servletRequest);
 
-    /**
-     * Lưu dữ liệu bước 1 vào Redis
-     */
-    void saveRegistrationStep1(RegisterStep1Dto request);
+    // Gửi lại mã OTP nếu chưa nhận được
+    void resendRegisterOtp(ResendRegisterOtpRequest request);
 
-    /**
-     * Lưu dữ liệu bước 2 vào Redis
-     */
-    void saveRegistrationStep2(String email, RegisterStep2Dto request);
+    // Kiểm tra nhanh email đã tồn tại chưa (Dùng cho UI realtime)
+    UserSummaryResponse checkEmail(String email);
 
-    /**
-     * Lưu dữ liệu bước 3 vào Redis
-     */
-    void saveRegistrationStep3(String email, RegisterStep3Dto request);
-
-    /**
-     * Tạo và gửi OTP đến email người dùng
-     */
-    void generateAndSendOtp(String email);
-
-    /**
-     * Xác thực mã OTP nhập vào
-     */
-    void verifyOtp(OtpVerificationDto request);
-
-    /**
-     * Gửi lại mã OTP
-     */
-    void resendOtp(ResendOtpDto request);
-
-    /**
-     * Xử lý đăng nhập
-     */
-    RegistrationResponse authenticate(LoginDto request);
-
-    /**
-     * Làm mới Access Token bằng Refresh Token
-     */
-    RegistrationResponse refreshToken(RefreshTokenRequest request);
-
-    /**
-     * Hoàn thành đăng ký - Tạo User chính thức trong DB
-     */
-    RegistrationResponse completeRegistration(String email);
-
-    /**
-     * Lấy dữ liệu đăng ký hiện tại (dùng cho Wizard Back/Next)
-     */
-    RegisterTempData getRegistrationData(String email);
+    // Kiểm tra nhanh Handle (ID người dùng) đã tồn tại chưa
+    boolean isHandleExists(String handle);
+    
+    // Kích hoạt tài khoản qua Link email (Legacy - Cách cũ)
+    void activateUserAccount(String token);
 }
