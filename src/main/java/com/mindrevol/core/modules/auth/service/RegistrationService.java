@@ -1,6 +1,6 @@
 package com.mindrevol.core.modules.auth.service;
 
-import com.mindrevol.core.modules.auth.dto.request.registration.RegisterRequest;
+import com.mindrevol.core.modules.auth.dto.request.RegisterRequest;
 import com.mindrevol.core.modules.auth.dto.request.ResendRegisterOtpRequest;
 import com.mindrevol.core.modules.auth.dto.request.VerifyRegisterOtpRequest;
 import com.mindrevol.core.modules.auth.dto.response.JwtResponse;

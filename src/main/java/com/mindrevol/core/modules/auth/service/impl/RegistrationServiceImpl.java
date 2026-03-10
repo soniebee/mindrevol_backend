@@ -61,14 +61,15 @@ public class RegistrationServiceImpl implements RegistrationService {
         String otpCode = String.format("%06d", new Random().nextInt(999999));
 
         RegisterTempData tempData = RegisterTempData.builder()
-                .fullname(request.getFullname())
                 .email(request.getEmail())
+                .fullname(request.getFullname())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .handle(request.getHandle())
                 .dateOfBirth(request.getDateOfBirth())
                 .gender(request.getGender())
                 .otpCode(otpCode)
-                .retryCount(0)
+                .otpAttempts(0)
+                .currentStep(4) // Legacy: directly to final step
                 .build();
 
         String redisKey = REG_TEMP_PREFIX + request.getEmail();
@@ -106,9 +107,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
 
         if (!tempData.getOtpCode().equals(request.getOtpCode())) {
-            int currentRetry = tempData.getRetryCount() + 1;
-            tempData.setRetryCount(currentRetry);
-            
+            int currentRetry = tempData.getOtpAttempts() + 1;
+            tempData.setOtpAttempts(currentRetry);
+
             if (currentRetry > 5) {
                 redisTemplate.delete(redisKey);
                 throw new BadRequestException("Bạn đã nhập sai quá nhiều lần. Phiên đăng ký đã bị hủy.");
