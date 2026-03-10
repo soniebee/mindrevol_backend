@@ -1,6 +1,5 @@
 package com.mindrevol.core.modules.auth.entity;
 
-
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
@@ -8,7 +7,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "social_accounts", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"provider", "provider_id"})
+    @UniqueConstraint(columnNames = {"provider", "provider_id"})
 })
 @Getter
 @Setter
@@ -24,13 +23,13 @@ public class SocialAccount extends BaseEntity {
     private User user;
 
     @Column(nullable = false, length = 50)
-    private String provider;
+    private String provider; 
 
     @Column(name = "provider_id", nullable = false)
-    private String providerId;
+    private String providerId; 
 
-    private String email;
-
+    private String email; 
+    
     @Column(name = "avatar_url")
     private String avatarUrl;
 }

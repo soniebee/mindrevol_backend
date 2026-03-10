@@ -44,8 +44,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (uri.startsWith("/api/v1/auth/login") || uri.startsWith("/api/v1/auth/register")) {
             bucket = rateLimitingService.resolveLoginBucket(ip);
         } 
-        // --- MỚI: OTP CHẶT CHẼ ---
-        else if (uri.startsWith("/api/v1/auth/otp")) {
+        // --- OTP ENDPOINTS: Giới hạn chặt chẽ để tránh spam ---
+        else if (uri.contains("/send-otp") || uri.contains("/resend-otp") || uri.contains("/verify-otp")) {
             bucket = rateLimitingService.resolveOtpBucket(ip);
         }
         // -------------------------

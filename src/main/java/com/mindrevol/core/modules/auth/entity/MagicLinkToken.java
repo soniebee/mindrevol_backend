@@ -1,6 +1,5 @@
 package com.mindrevol.core.modules.auth.entity;
 
-
 import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -17,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "magic_link_tokens")
 public class MagicLinkToken {
-
+    
     @Id
     @UuidGenerator
     @Column(length = 36)
