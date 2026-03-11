@@ -7,10 +7,10 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class BoxResponse {
-    private String id;
+    private String id; // Trở về String
     private String name;
     private String avatar;
-    private String themeSlug; // Dùng để load khung ảnh của bạn
-    private long memberCount; // Để App biết là Solo hay Group mà ẩn/hiện nút Chat
+    private String themeSlug;
+    private long memberCount;
     private LocalDateTime lastActivityAt;
 }

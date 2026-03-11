@@ -20,8 +20,7 @@ public class BoxMapper {
 
     public BoxResponse toResponse(Box box, long memberCount) {
         return BoxResponse.builder()
-                // Thêm .toString() ở đây để chuyển UUID thành String
-                .id(box.getId() != null ? box.getId().toString() : null)
+                .id(box.getId()) // Đã là String nên gán thẳng, không cần ép kiểu
                 .name(box.getName())
                 .avatar(box.getAvatar())
                 .themeSlug(box.getThemeSlug())
@@ -32,8 +31,7 @@ public class BoxMapper {
 
     public BoxDetailResponse toDetailResponse(Box box, long memberCount, String myRole) {
         return BoxDetailResponse.builder()
-                // Thêm .toString() ở đây
-                .id(box.getId() != null ? box.getId().toString() : null)
+                .id(box.getId()) // Gán thẳng String
                 .name(box.getName())
                 .description(box.getDescription())
                 .themeSlug(box.getThemeSlug())
