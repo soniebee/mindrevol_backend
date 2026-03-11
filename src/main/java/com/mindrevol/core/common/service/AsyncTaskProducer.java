@@ -1,6 +1,5 @@
 package com.mindrevol.core.common.service;
 
-//import com.mindrevol.core.modules.journey.recap.dto.VideoTask;
 import com.mindrevol.core.modules.notification.dto.EmailTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

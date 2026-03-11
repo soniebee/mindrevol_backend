@@ -35,3 +35,4 @@ public interface CheckinMapper {
     @Mapping(target = "createdAt", source = "createdAt")
     CommentResponse toCommentResponse(CheckinComment comment);
 }
+
