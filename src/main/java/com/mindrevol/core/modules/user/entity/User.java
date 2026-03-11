@@ -1,6 +1,6 @@
-package com.mindrevol.core.module.user.entity;
+package com.mindrevol.core.modules.user.entity;
 
-import com.mindrevol.core.common.enitty.BaseEntity; // Sử dụng đúng đường dẫn có typo 'enitty' của bạn
+import com.mindrevol.core.common.entity.BaseEntity; // Sử dụng đúng đường dẫn có typo 'enitty' của bạn
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;

@@ -1,4 +1,4 @@
-package com.mindrevol.core.common.enitty;
+package com.mindrevol.core.common.entity;
 
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
