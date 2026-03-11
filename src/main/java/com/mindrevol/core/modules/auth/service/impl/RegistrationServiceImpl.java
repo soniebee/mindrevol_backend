@@ -1,5 +1,10 @@
 package com.mindrevol.core.modules.auth.service.impl;
 
+import com.mindrevol.core.modules.auth.service.impl.RegistrationServiceImpl;
+import com.mindrevol.core.modules.user.entity.AccountType;
+import com.mindrevol.core.modules.user.entity.Role;
+import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.entity.UserStatus;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.service.AsyncTaskProducer;
 import com.mindrevol.core.modules.auth.dto.RegisterTempData;
@@ -61,15 +66,14 @@ public class RegistrationServiceImpl implements RegistrationService {
         String otpCode = String.format("%06d", new Random().nextInt(999999));
 
         RegisterTempData tempData = RegisterTempData.builder()
-                .email(request.getEmail())
                 .fullname(request.getFullname())
+                .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .handle(request.getHandle())
                 .dateOfBirth(request.getDateOfBirth())
                 .gender(request.getGender())
                 .otpCode(otpCode)
-                .otpAttempts(0)
-                .currentStep(4) // Legacy: directly to final step
+                .retryCount(0)
                 .build();
 
         String redisKey = REG_TEMP_PREFIX + request.getEmail();
@@ -107,9 +111,9 @@ public class RegistrationServiceImpl implements RegistrationService {
         }
 
         if (!tempData.getOtpCode().equals(request.getOtpCode())) {
-            int currentRetry = tempData.getOtpAttempts() + 1;
-            tempData.setOtpAttempts(currentRetry);
-
+            int currentRetry = tempData.getRetryCount() + 1;
+            tempData.setRetryCount(currentRetry);
+            
             if (currentRetry > 5) {
                 redisTemplate.delete(redisKey);
                 throw new BadRequestException("Bạn đã nhập sai quá nhiều lần. Phiên đăng ký đã bị hủy.");

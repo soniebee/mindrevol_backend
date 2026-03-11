@@ -1,110 +1,48 @@
 package com.mindrevol.core.modules.user.service;
 
-import com.mindrevol.core.modules.user.dto.request.BlockUserDto;
-import com.mindrevol.core.modules.user.dto.request.ChangePasswordDto;
-import com.mindrevol.core.modules.user.dto.request.FollowUserDto;
-import com.mindrevol.core.modules.user.dto.request.UpdateProfileDto;
+import com.mindrevol.core.modules.user.dto.request.UpdateNotificationSettingsRequest;
+import com.mindrevol.core.modules.user.dto.request.UpdateProfileRequest;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
+import com.mindrevol.core.modules.user.dto.response.UserDataExport;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
-import com.mindrevol.core.modules.user.dto.response.UserPublicResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
+import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.entity.UserSettings;
+import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
+import org.springframework.web.multipart.MultipartFile; // Import này
 
 import java.util.List;
 
-/**
- * Interface Service xử lý các chức năng của User Module
- */
 public interface UserService {
 
-    /**
-     * Lấy thông tin hồ sơ của user hiện tại (đã xác thực)
-     */
-    UserProfileResponse getMyProfile(String userId);
+    UserProfileResponse getMyProfile(String currentEmail);
 
-    /**
-     * Lấy thông tin hồ sơ công khai của user khác
-     */
-    UserPublicResponse getUserProfile(String userId);
+    UserProfileResponse getPublicProfile(String handle, String currentUserEmail);
+    
+    UserProfileResponse getPublicProfileById(String userId, String currentUserEmail);
 
-    /**
-     * Cập nhật thông tin hồ sơ người dùng
-     */
-    UserProfileResponse updateProfile(String userId, UpdateProfileDto request);
+    // [CẬP NHẬT] Thêm MultipartFile vào tham số
+    UserProfileResponse updateProfile(String currentEmail, UpdateProfileRequest request, MultipartFile file);
 
-    /**
-     * Thay đổi mật khẩu
-     */
-    void changePassword(String userId, ChangePasswordDto request);
+    void updateFcmToken(String userId, String token);
 
-    /**
-     * Theo dõi người dùng
-     */
-    void followUser(String currentUserId, FollowUserDto request);
+    User getUserById(String id);
 
-    /**
-     * Hủy theo dõi người dùng
-     */
-    void unfollowUser(String currentUserId, String targetUserId);
+    void deleteMyAccount(String userId);
+    
+    UserDataExport exportMyData(String userId);
+    
+    List<UserSummaryResponse> searchUsers(String query, String currentUserId);
+    
+    List<JourneyResponse> getUserRecaps(String userId);
 
-    /**
-     * Chặn người dùng
-     */
-    void blockUser(String currentUserId, BlockUserDto request);
+    UserSettings getNotificationSettings(String userId);
 
-    /**
-     * Bỏ chặn người dùng
-     */
-    void unblockUser(String currentUserId, String targetUserId);
+    UserSettings updateNotificationSettings(String userId, UpdateNotificationSettingsRequest request);
 
-    /**
-     * Lấy danh sách người theo dõi của user
-     */
-    Page<UserPublicResponse> getFollowers(String userId, Pageable pageable);
+    void createDefaultSettings(User user);
 
-    /**
-     * Lấy danh sách người đang theo dõi của user
-     */
-    Page<UserPublicResponse> getFollowing(String userId, Pageable pageable);
-
-    /**
-     * Tìm kiếm user theo handle hoặc fullname
-     */
-    Page<UserPublicResponse> searchUsers(String query, Pageable pageable);
-
-    /**
-     * Lấy danh sách tài khoản xã hội đã kết nối
-     */
     List<LinkedAccountResponse> getLinkedAccounts(String userId);
 
-    /**
-     * Kết nối tài khoản xã hội
-     */
-    void linkSocialAccount(String userId, String provider, String providerId, String email, String avatarUrl);
-
-    /**
-     * Hủy kết nối tài khoản xã hội
-     */
     void unlinkSocialAccount(String userId, String provider);
-
-    /**
-     * Kiểm tra xem 2 user có phải bạn không
-     */
-    boolean isFriend(String userId, String targetUserId);
-
-    /**
-     * Kiểm tra xem user có đang theo dõi không
-     */
-    boolean isFollowing(String userId, String targetUserId);
-
-    /**
-     * Kiểm tra xem user có bị chặn không
-     */
-    boolean isBlocked(String userId, String targetUserId);
-
-    /**
-     * Lấy trạng thái quan hệ giữa 2 user (FRIEND, FOLLOW, BLOCKED, NONE)
-     */
-    String getFriendshipStatus(String userId, String targetUserId);
 }
-
