@@ -3,20 +3,30 @@ package com.mindrevol.core.modules.notification.service;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class FirebaseService {
 
     private final FirebaseMessaging firebaseMessaging;
 
+    @Autowired
+    public FirebaseService(Optional<FirebaseMessaging> firebaseMessaging) {
+        this.firebaseMessaging = firebaseMessaging.orElse(null);
+    }
+
     public void sendNotification(String fcmToken, String title, String body, Map<String, String> data) {
+        if (firebaseMessaging == null) {
+            log.debug("Firebase is disabled. Skipping FCM notification to token: {}", fcmToken);
+            return;
+        }
+
         if (fcmToken == null || fcmToken.isEmpty()) {
             return;
         }

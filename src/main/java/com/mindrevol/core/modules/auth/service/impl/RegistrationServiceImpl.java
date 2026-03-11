@@ -1,5 +1,10 @@
 package com.mindrevol.core.modules.auth.service.impl;
 
+import com.mindrevol.core.modules.auth.service.impl.RegistrationServiceImpl;
+import com.mindrevol.core.modules.user.entity.AccountType;
+import com.mindrevol.core.modules.user.entity.Role;
+import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.entity.UserStatus;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.service.AsyncTaskProducer;
 import com.mindrevol.core.modules.auth.dto.RegisterTempData;
@@ -38,12 +43,12 @@ public class RegistrationServiceImpl implements RegistrationService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserActivationTokenRepository activationTokenRepository;
-
+    
     private final RedisTemplate<String, Object> redisTemplate;
     private final AsyncTaskProducer asyncTaskProducer;
     private final PasswordEncoder passwordEncoder;
-
-    private final SessionService sessionService;
+    
+    private final SessionService sessionService; 
 
     private static final String REG_TEMP_PREFIX = "reg_temp:";
     private static final long REG_TEMP_TTL_MINUTES = 10;
@@ -83,7 +88,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                 "<p>Mã này có hiệu lực trong vòng <b>10 phút</b>.</p>" +
                 "<p style='font-size: 12px; color: #666;'>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>" +
                 "</div>";
-
+        
         EmailTask task = EmailTask.builder()
                 .toEmail(request.getEmail())
                 .subject(subject)
@@ -108,12 +113,12 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (!tempData.getOtpCode().equals(request.getOtpCode())) {
             int currentRetry = tempData.getRetryCount() + 1;
             tempData.setRetryCount(currentRetry);
-
+            
             if (currentRetry > 5) {
                 redisTemplate.delete(redisKey);
                 throw new BadRequestException("Bạn đã nhập sai quá nhiều lần. Phiên đăng ký đã bị hủy.");
             }
-
+            
             redisTemplate.opsForValue().set(redisKey, tempData, REG_TEMP_TTL_MINUTES, TimeUnit.MINUTES);
             throw new BadRequestException("Mã OTP không chính xác. Bạn còn " + (6 - currentRetry) + " lần thử.");
         }
@@ -127,7 +132,7 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         User newUser = User.builder()
                 .email(tempData.getEmail())
-                .password(tempData.getPassword())
+                .password(tempData.getPassword()) 
                 .fullname(tempData.getFullname())
                 .handle(tempData.getHandle())
                 .dateOfBirth(tempData.getDateOfBirth())
@@ -139,7 +144,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                 .build();
 
         userRepository.save(newUser);
-
+        
         createDefaultSettings(newUser);
 
         redisTemplate.delete(redisKey);
@@ -158,12 +163,12 @@ public class RegistrationServiceImpl implements RegistrationService {
 
         String newOtp = String.format("%06d", new Random().nextInt(999999));
         tempData.setOtpCode(newOtp);
-
+        
         redisTemplate.opsForValue().set(redisKey, tempData, REG_TEMP_TTL_MINUTES, TimeUnit.MINUTES);
 
         String subject = "Gửi lại mã xác thực - MindRevol";
         String content = "<p>Mã xác thực MỚI của bạn là: <b style='font-size: 20px; color: #4F46E5;'>" + newOtp + "</b></p>";
-
+        
         EmailTask task = EmailTask.builder()
                 .toEmail(tempData.getEmail())
                 .subject(subject)
@@ -179,7 +184,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             boolean hasPass = "LOCAL".equalsIgnoreCase(user.getAuthProvider());
-
+            
             return UserSummaryResponse.builder()
                     .id(user.getId())
                     .fullname(user.getFullname())
@@ -187,7 +192,7 @@ public class RegistrationServiceImpl implements RegistrationService {
                     .avatarUrl(user.getAvatarUrl())
                     .isOnline(true)
                     .hasPassword(hasPass)
-                    .authProvider(user.getAuthProvider())
+                    .authProvider(user.getAuthProvider()) 
                     .build();
         }
         return null;
@@ -212,7 +217,10 @@ public class RegistrationServiceImpl implements RegistrationService {
     }
 
     private void createDefaultSettings(User user) {
-        // Default settings hook is intentionally disabled for now.
-        log.debug("Default settings creation is skipped for user {}", user.getId());
+        try {
+             // userService.createDefaultSettings(user); 
+        } catch (Exception e) {
+            log.warn("Could not create default settings for user {}", user.getId());
+        }
     }
 }
