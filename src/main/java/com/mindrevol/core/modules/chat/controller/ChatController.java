@@ -1,0 +1,64 @@
+package com.mindrevol.core.modules.chat.controller;
+
+import com.mindrevol.core.common.dto.ApiResponse;
+import com.mindrevol.core.common.utils.SecurityUtils;
+import com.mindrevol.core.modules.chat.dto.request.SendMessageRequest;
+import com.mindrevol.core.modules.chat.dto.response.ConversationResponse;
+import com.mindrevol.core.modules.chat.dto.response.MessageResponse;
+import com.mindrevol.core.modules.chat.service.ChatService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/chat")
+@RequiredArgsConstructor
+public class ChatController {
+
+    private final ChatService chatService;
+
+    // 1. Gửi tin nhắn
+    @PostMapping("/send")
+    public ResponseEntity<ApiResponse<MessageResponse>> sendMessage(@RequestBody SendMessageRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(chatService.sendMessage(userId, request)));
+    }
+
+    // 2. Lấy danh sách Inbox (Đã nâng cấp trả về DTO xịn)
+    @GetMapping("/conversations")
+    public ResponseEntity<ApiResponse<List<ConversationResponse>>> getConversations() {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(chatService.getUserConversations(userId)));
+    }
+
+    // 3. Lấy tin nhắn chi tiết
+    @GetMapping("/messages/{partnerId}")
+    public ResponseEntity<ApiResponse<Page<MessageResponse>>> getMessages(
+            @PathVariable String partnerId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(chatService.getMessagesWithUser(userId, partnerId, pageable)));
+    }
+
+    // 4. Đánh dấu đã đọc
+    @PostMapping("/conversations/{conversationId}/read")
+    public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable String conversationId) {
+        String userId = SecurityUtils.getCurrentUserId();
+        chatService.markConversationAsRead(conversationId, userId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+    
+    @PostMapping("/conversations/init/{receiverId}")
+    public ResponseEntity<ApiResponse<ConversationResponse>> getOrCreateConversation(
+            @PathVariable String receiverId) {
+        String senderId = SecurityUtils.getCurrentUserId();
+        ConversationResponse response = chatService.getOrCreateConversation(senderId, receiverId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+}
