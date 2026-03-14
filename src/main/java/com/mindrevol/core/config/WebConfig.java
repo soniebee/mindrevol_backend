@@ -10,15 +10,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**") // Áp dụng cho toàn bộ API
-                .allowedOrigins(
-                    "https://mindrevol.vercel.app", // Domain Vercel chính thức
-                    "https://mindrevol-web.vercel.app", // Domain phụ nếu có
-                    "http://localhost:5173" // Vẫn giữ localhost để Minh dev tiếp
-                )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
-                .allowedHeaders("*")
-                .allowCredentials(true) // Cho phép gửi cookie/token
-                .maxAge(3600); // Cache cấu hình này trong 1 giờ
+        // Cấu hình CORS chính hiện đã được xử lý trong SecurityConfig.corsConfigurationSource()
+        // WebMvcConfigurer.addCorsMappings() thường chạy sau hoặc song song với Spring Security.
+        // Để tránh xung đột, chúng ta có thể để trống ở đây hoặc chỉ dùng cho các endpoint không qua Security.
     }
 }

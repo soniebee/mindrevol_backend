@@ -9,18 +9,28 @@ import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
+<<<<<<< HEAD
 import org.springframework.stereotype.Service;
+=======
+>>>>>>> origin/develop
 import org.springframework.web.multipart.MultipartFile; // Import này
 
 import java.util.List;
 
+<<<<<<< HEAD
 @Service
+=======
+>>>>>>> origin/develop
 public interface UserService {
 
     UserProfileResponse getMyProfile(String currentEmail);
 
     UserProfileResponse getPublicProfile(String handle, String currentUserEmail);
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> origin/develop
     UserProfileResponse getPublicProfileById(String userId, String currentUserEmail);
 
     // [CẬP NHẬT] Thêm MultipartFile vào tham số
@@ -31,11 +41,19 @@ public interface UserService {
     User getUserById(String id);
 
     void deleteMyAccount(String userId);
+<<<<<<< HEAD
 
     UserDataExport exportMyData(String userId);
 
     List<UserSummaryResponse> searchUsers(String query, String currentUserId);
 
+=======
+    
+    UserDataExport exportMyData(String userId);
+    
+    List<UserSummaryResponse> searchUsers(String query, String currentUserId);
+    
+>>>>>>> origin/develop
     List<JourneyResponse> getUserRecaps(String userId);
 
     UserSettings getNotificationSettings(String userId);

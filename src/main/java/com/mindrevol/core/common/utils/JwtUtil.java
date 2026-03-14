@@ -62,6 +62,19 @@ public class JwtUtil {
                 .getSubject();
     }
 
+    public String getTokenType(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.get("type", String.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public String extractUsername(String token) {
         return getEmailFromToken(token);
     }
@@ -74,5 +87,16 @@ public class JwtUtil {
             log.error("Invalid JWT token: {}", e.getMessage());
             return false;
         }
+    }
+
+    public String generatePasswordResetToken(User user) {
+        return Jwts.builder()
+                .setSubject(user.getEmail())
+                .claim("userId", user.getId())
+                .claim("type", "password_reset")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 30 * 60 * 1000)) // 30 minutes
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .compact();
     }
 }

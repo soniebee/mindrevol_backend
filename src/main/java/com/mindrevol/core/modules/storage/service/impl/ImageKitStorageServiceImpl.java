@@ -82,28 +82,28 @@ public class ImageKitStorageServiceImpl implements FileStorageService {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-
+            
             ByteArrayResource fileResource = new ByteArrayResource(fileBytes) {
                 @Override
                 public String getFilename() {
                     return fileName;
                 }
             };
-
+            
             body.add("file", fileResource);
             body.add("fileName", fileName);
             body.add("useUniqueFileName", "true");
-            body.add("folder", folder);
+            body.add("folder", folder); 
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(uploadUrl, requestEntity, String.class);
 
             if (response.getStatusCode() == HttpStatus.OK || response.getStatusCode() == HttpStatus.CREATED) {
                 JsonNode root = objectMapper.readTree(response.getBody());
-
+                
                 return FileUploadResult.builder()
                         .url(root.path("url").asText())
-                        .fileId(root.path("fileId").asText())
+                        .fileId(root.path("fileId").asText()) 
                         .thumbnailUrl(root.path("thumbnailUrl").asText())
                         .build();
             } else {
@@ -139,7 +139,7 @@ public class ImageKitStorageServiceImpl implements FileStorageService {
             HttpEntity<Void> requestEntity = new HttpEntity<>(headers);
 
             restTemplate.exchange(deleteUrl, HttpMethod.DELETE, requestEntity, Void.class);
-
+            
             log.info("✅ Deleted file from ImageKit successfully: {}", fileId);
 
         } catch (HttpClientErrorException.NotFound e) {
@@ -154,7 +154,7 @@ public class ImageKitStorageServiceImpl implements FileStorageService {
     private HttpHeaders createAuthHeaders() {
         HttpHeaders headers = new HttpHeaders();
         // Basic Auth: base64(privateKey + ":")
-        String auth = privateKey + ":";
+        String auth = privateKey + ":"; 
         String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
         headers.set("Authorization", "Basic " + encodedAuth);
         return headers;

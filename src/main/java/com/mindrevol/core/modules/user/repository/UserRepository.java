@@ -24,14 +24,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Modifying
     @Query(value = "DELETE FROM users WHERE id = :userId", nativeQuery = true)
     void hardDeleteUser(@Param("userId") String userId);
-    
+
     @Query("SELECT u FROM User u WHERE " +
             "(LOWER(u.fullname) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
             "LOWER(u.handle) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
             "LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))) " +
             "AND u.deletedAt IS NULL")
      List<User> searchUsers(@Param("query") String query);
-    
+
     @Modifying
     @Query("UPDATE User u SET u.points = u.points + :amount WHERE u.id = :userId")
     void incrementPoints(@Param("userId") String userId, @Param("amount") int amount);
