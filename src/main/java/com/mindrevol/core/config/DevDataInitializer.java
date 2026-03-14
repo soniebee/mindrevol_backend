@@ -1,18 +1,17 @@
 package com.mindrevol.core.config;
 
 import com.mindrevol.core.modules.user.entity.Role;
+import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.RoleRepository;
+import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder; // <-- Import thêm cái này
 
-/**
- * Data initializer for development profile (H2 database)
- * Creates default roles when application starts
- */
 @Slf4j
 @Configuration
 @Profile("dev")
@@ -20,26 +19,43 @@ import org.springframework.context.annotation.Profile;
 public class DevDataInitializer {
 
     private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder; // <-- Khai báo thêm cái này
 
     @Bean
     public CommandLineRunner initDevData() {
         return args -> {
-            log.info("🔧 Development mode: Initializing default data...");
+            log.info("🔧 Development mode: Initializing default data for PostgreSQL...");
 
-            // Create default roles if they don't exist
             if (roleRepository.count() == 0) {
                 createRole("ROLE_USER", "Standard user role");
                 createRole("ROLE_ADMIN", "Administrator role");
                 createRole("ROLE_MODERATOR", "Moderator role");
                 log.info("✅ Default roles created successfully");
-            } else {
-                log.info("✅ Roles already exist, skipping initialization");
             }
 
-            log.info("🚀 Application ready! H2 Console: http://localhost:8080/h2-console");
-            log.info("   JDBC URL: jdbc:h2:mem:mindrevol_db");
-            log.info("   Username: sa");
-            log.info("   Password: (empty)");
+            if (userRepository.count() == 0) {
+                User user1 = User.builder()
+                        .email("hoanggia.admin@mindrevol.com")
+                        .password(passwordEncoder.encode("123456")) // <-- Đã mã hóa mật khẩu
+                        .handle("admin_gia")
+                        .fullname("Hoàng Gia Admin")
+                        .build();
+                userRepository.save(user1);
+
+                User user2 = User.builder()
+                        .email("thanhvien.test@mindrevol.com")
+                        .password(passwordEncoder.encode("123456")) // <-- Đã mã hóa mật khẩu
+                        .handle("test_user_01")
+                        .fullname("Thành Viên Test")
+                        .build();
+                userRepository.save(user2);
+
+                log.info("✅ Default test users created successfully in PostgreSQL!");
+            } else {
+                log.info("✅ Users already exist in PostgreSQL. Ready to test!");
+            }
+            log.info("🚀 Application is successfully connected to PostgreSQL and Ready!");
         };
     }
 
@@ -48,7 +64,5 @@ public class DevDataInitializer {
         role.setName(name);
         role.setDescription(description);
         roleRepository.save(role);
-        log.debug("Created role: {}", name);
     }
 }
-
