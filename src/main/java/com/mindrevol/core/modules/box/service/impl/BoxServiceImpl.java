@@ -10,6 +10,8 @@ import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.entity.BoxInvitation;
 import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.entity.BoxRole;
+import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
 import com.mindrevol.core.modules.box.mapper.BoxMapper;
 import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
@@ -21,6 +23,7 @@ import com.mindrevol.core.modules.journey.entity.JourneyStatus;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,12 +39,15 @@ public class BoxServiceImpl implements BoxService {
 
     private final BoxRepository boxRepository;
     private final BoxMemberRepository boxMemberRepository;
-    private final BoxInvitationRepository boxInvitationRepository; // Đã thêm repository này
+    private final BoxInvitationRepository boxInvitationRepository;
     private final UserRepository userRepository;
     private final BoxMapper boxMapper;
 
+    // 📢 Tiêm công cụ phát sự kiện vào đây
+    private final ApplicationEventPublisher eventPublisher;
+
     // =========================================================================
-    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN (CODE CŨ CỦA BẠN)
+    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN
     // =========================================================================
 
     @Override
@@ -117,20 +123,16 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
-        // Kiểm tra quyền: Chỉ Admin mới được sửa Box
         if (!BoxRole.ADMIN.equals(myMembership.getRole())) {
             throw new BadRequestException("Chỉ Admin mới có quyền chỉnh sửa Box");
         }
 
-        // Cập nhật các trường có thay đổi
         if (request.getName() != null) box.setName(request.getName());
         if (request.getDescription() != null) box.setDescription(request.getDescription());
         if (request.getThemeSlug() != null) box.setThemeSlug(request.getThemeSlug());
         if (request.getAvatar() != null) box.setAvatar(request.getAvatar());
 
         boxRepository.save(box);
-
-        // Gọi lại hàm getBoxDetail để trả về dữ liệu mới nhất
         return getBoxDetail(boxId, userId);
     }
 
@@ -147,7 +149,6 @@ public class BoxServiceImpl implements BoxService {
             throw new BadRequestException("Chỉ Admin mới có quyền xóa Box");
         }
 
-        // Thực hiện Soft Delete (Cập nhật ngày xóa thay vì xóa hẳn khỏi DB)
         box.setDeletedAt(LocalDateTime.now());
         boxRepository.save(box);
     }
@@ -158,7 +159,6 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
-        // Xóa user khỏi Box
         boxMemberRepository.delete(myMembership);
     }
 
@@ -185,13 +185,11 @@ public class BoxServiceImpl implements BoxService {
             throw new BadRequestException("Người này đã là thành viên của Box");
         }
 
-        // Đã sửa lại thành recipientId cho khớp với Repository của bạn
         boolean hasPendingInvite = boxInvitationRepository.existsByBoxIdAndRecipientIdAndStatus(boxId, inviteeId, "PENDING");
         if (hasPendingInvite) {
             throw new BadRequestException("Đã gửi lời mời đến người này rồi, đang chờ họ đồng ý");
         }
 
-        // Đã đổi inviter -> sender, invitee -> recipient cho khớp Entity
         BoxInvitation invitation = BoxInvitation.builder()
                 .box(box)
                 .sender(userRepository.getReferenceById(inviterId))
@@ -199,12 +197,17 @@ public class BoxServiceImpl implements BoxService {
                 .status("PENDING")
                 .build();
 
-        boxInvitationRepository.save(invitation);
+        // Đã mở comment lưu database
+        invitation = boxInvitationRepository.save(invitation);
 
-        // =========================================================
-        // 🔔 [MODULE NOTIFICATION] GÓI GẮM CHO BẠN LÀM THÔNG BÁO
-        // notificationService.sendBoxInviteNotification(invitation);
-        // =========================================================
+        // 📢 Phát sự kiện: Đã gửi lời mời
+        eventPublisher.publishEvent(BoxInvitedEvent.builder()
+                .invitationId(invitation.getId())
+                .boxId(box.getId())
+                .boxName(box.getName())
+                .senderId(inviterId)
+                .recipientId(inviteeId)
+                .build());
     }
 
     @Override
@@ -213,7 +216,6 @@ public class BoxServiceImpl implements BoxService {
         BoxInvitation invitation = boxInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời này"));
 
-        // Đã đổi getInvitee() thành getRecipient()
         if (!invitation.getRecipient().getId().equals(userId)) {
             throw new BadRequestException("Bạn không có quyền xử lý lời mời của người khác");
         }
@@ -223,7 +225,6 @@ public class BoxServiceImpl implements BoxService {
         }
 
         if (isAccepted) {
-            // Đã đổi getInvitee() thành getRecipient()
             BoxMember newMember = BoxMember.builder()
                     .box(invitation.getBox())
                     .user(invitation.getRecipient())
@@ -233,16 +234,17 @@ public class BoxServiceImpl implements BoxService {
 
             invitation.setStatus("ACCEPTED");
 
+            // 📢 Phát sự kiện: Người dùng đã đồng ý vào Box
+            eventPublisher.publishEvent(BoxMemberJoinedEvent.builder()
+                    .boxId(invitation.getBox().getId())
+                    .boxName(invitation.getBox().getName())
+                    .joinedUserId(userId)
+                    .build());
         } else {
             invitation.setStatus("REJECTED");
         }
 
         boxInvitationRepository.save(invitation);
-
-
-            // =========================================================
-            // 🔔 [MODULE NOTIFICATION] Báo cho Box biết có người mới
-            // ========================================================
     }
 
     @Override
