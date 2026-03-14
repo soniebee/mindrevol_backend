@@ -27,7 +27,7 @@
 //    public void configureMessageBroker(MessageBrokerRegistry registry) {
 //        // --- CẤU HÌNH CHO MÔI TRƯỜNG DEV/MVP (IN-MEMORY) ---
 //        registry.enableSimpleBroker("/topic", "/queue");
-//        
+//
 //        // --- CẤU HÌNH CHO SCALE (RABBITMQ / ACTIVEMQ) ---
 //        // Khi deploy thật, hãy uncomment đoạn này và comment dòng trên lại.
 //        /*
@@ -39,7 +39,7 @@
 //        */
 //
 //        registry.setApplicationDestinationPrefixes("/app");
-//        registry.setUserDestinationPrefix("/user"); 
+//        registry.setUserDestinationPrefix("/user");
 //    }
 //
 //    @Override

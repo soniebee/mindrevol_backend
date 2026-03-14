@@ -128,6 +128,8 @@ dependencies {
     implementation 'com.github.loki4j:loki-logback-appender:1.5.1'
     
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+    implementation 'io.imagekit.java:imagekit-java:3.0.4'
 }
 
 tasks.named('test') {

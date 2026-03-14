@@ -60,38 +60,38 @@ public class CheckinController {
         User currentUser = userService.getUserById(userId);
         return ResponseEntity.ok(ApiResponse.success(checkinService.getJourneyFeedByCursor(journeyId, currentUser, cursor, limit)));
     }
+//
+//    // --- INTERACTIONS ---
+//
+//    @PostMapping("/{checkinId}/comments")
+//    public ResponseEntity<ApiResponse<CommentResponse>> postComment(
+//            @PathVariable String checkinId,
+//            @RequestBody String content) {
+//        String userId = SecurityUtils.getCurrentUserId();
+//        User currentUser = userService.getUserById(userId);
+//        return ResponseEntity.ok(ApiResponse.success(checkinService.postComment(checkinId, content, currentUser)));
+//    }
+//
+//    @GetMapping("/{checkinId}/comments")
+//    public ResponseEntity<ApiResponse<Page<CommentResponse>>> getComments(
+//            @PathVariable String checkinId,
+//            Pageable pageable) {
+//        return ResponseEntity.ok(ApiResponse.success(checkinService.getComments(checkinId, pageable)));
+//    }
 
-    // --- INTERACTIONS ---
-
-    @PostMapping("/{checkinId}/comments")
-    public ResponseEntity<ApiResponse<CommentResponse>> postComment(
-            @PathVariable String checkinId,
-            @RequestBody String content) {
-        String userId = SecurityUtils.getCurrentUserId();
-        User currentUser = userService.getUserById(userId);
-        return ResponseEntity.ok(ApiResponse.success(checkinService.postComment(checkinId, content, currentUser)));
-    }
-
-    @GetMapping("/{checkinId}/comments")
-    public ResponseEntity<ApiResponse<Page<CommentResponse>>> getComments(
-            @PathVariable String checkinId,
-            Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(checkinService.getComments(checkinId, pageable)));
-    }
-
-    @PostMapping("/{checkinId}/reactions")
-    public ResponseEntity<ApiResponse<Void>> toggleReaction(
-            @PathVariable String checkinId,
-            @RequestBody @Valid ReactionRequest request) {
-        String userId = SecurityUtils.getCurrentUserId();
-        reactionService.toggleReaction(checkinId, userId, request.getEmoji(), request.getMediaUrl());
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
-
-    @GetMapping("/{checkinId}/reactions")
-    public ResponseEntity<ApiResponse<List<CheckinReactionDetailResponse>>> getReactions(@PathVariable String checkinId) {
-        return ResponseEntity.ok(ApiResponse.success(reactionService.getReactions(checkinId)));
-    }
+//    @PostMapping("/{checkinId}/reactions")
+//    public ResponseEntity<ApiResponse<Void>> toggleReaction(
+//            @PathVariable String checkinId,
+//            @RequestBody @Valid ReactionRequest request) {
+//        String userId = SecurityUtils.getCurrentUserId();
+//        reactionService.toggleReaction(checkinId, userId, request.getEmoji(), request.getMediaUrl());
+//        return ResponseEntity.ok(ApiResponse.success(null));
+//    }
+//
+//    @GetMapping("/{checkinId}/reactions")
+//    public ResponseEntity<ApiResponse<List<CheckinReactionDetailResponse>>> getReactions(@PathVariable String checkinId) {
+//        return ResponseEntity.ok(ApiResponse.success(reactionService.getReactions(checkinId)));
+//    }
 
     // --- ACTIONS ---
 
