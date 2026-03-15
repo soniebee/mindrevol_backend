@@ -18,11 +18,7 @@ public interface UserMapper {
 
     @Mapping(source = "createdAt", target = "joinedAt")
     @Mapping(target = "roles", source = "roles", qualifiedByName = "mapRoles")
-<<<<<<< HEAD
     @Mapping(target = "followerCount", ignore = true)
-=======
-    @Mapping(target = "followerCount", ignore = true) 
->>>>>>> origin/develop
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "isFollowedByCurrentUser", ignore = true)
     UserProfileResponse toProfileResponse(User user);
@@ -43,8 +39,4 @@ public interface UserMapper {
     default OffsetDateTime map(LocalDateTime value) {
         return value != null ? value.atOffset(ZoneOffset.UTC) : null;
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> origin/develop

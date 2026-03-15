@@ -10,12 +10,12 @@ import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface   CheckinService {
+public interface CheckinService {
 
     CheckinResponse createCheckin(CheckinRequest request, User currentUser);
 
-    // [UUID] Long -> String
-    Page<CheckinResponse> getJourneyFeed(String journeyId, Pageable pageable, User currentUser);
+    // [SỬA LẠI]: Thêm tham số String chapterId để đồng bộ với CheckinServiceImpl
+    Page<CheckinResponse> getJourneyFeed(String journeyId, String chapterId, Pageable pageable, User currentUser);
 
     CommentResponse postComment(String checkinId, String content, User currentUser);
 
@@ -23,7 +23,8 @@ public interface   CheckinService {
 
     List<CheckinResponse> getUnifiedFeed(User currentUser, LocalDateTime cursor, int limit);
 
-    List<CheckinResponse> getJourneyFeedByCursor(String journeyId, User currentUser, LocalDateTime cursor, int limit);
+    // [SỬA LẠI]: Thêm tham số String chapterId để đồng bộ với CheckinServiceImpl
+    List<CheckinResponse> getJourneyFeedByCursor(String journeyId, String chapterId, User currentUser, LocalDateTime cursor, int limit);
 
     CheckinResponse updateCheckin(String checkinId, String caption, User currentUser);
 

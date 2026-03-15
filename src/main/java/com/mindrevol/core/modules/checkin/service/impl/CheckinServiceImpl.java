@@ -84,17 +84,32 @@ public class CheckinServiceImpl implements CheckinService {
     @CacheEvict(value = "journey_widget", key = "#request.journeyId + '-' + #currentUser.id")
     @Transactional
     public CheckinResponse createCheckin(CheckinRequest request, User currentUser) {
-        Journey journey = journeyRepository.findById(request.getJourneyId())
-                .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
+        //Khởi tạo các biến để xử lý UNSORTED
+        Journey journey = null;
+        JourneyParticipant participant = null;
+        LocalDateTime expiresAt = null;
 
-        JourneyParticipant participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId())
-                .orElseThrow(() -> new BadRequestException("Bạn không phải thành viên"));
+        //Logic tự động xử lý khi post ảnh mà không chọn Journey
+        if (request.getJourneyId() == null || request.getJourneyId().trim().isEmpty() || request.getJourneyId().equalsIgnoreCase("UNSORTED")) {
+            journey = new Journey();
+            journey.setId("UNSORTED");
+            expiresAt = LocalDateTime.now().plusDays(14); // Set hạn sử dụng 14 ngày
+            log.info("Tạo checkin UNSORTED cho user {}, hết hạn lúc: {}", currentUser.getId(), expiresAt);
+        } else {
+            // Logic cũ: Có journey thì kiểm tra DB
+            journey = journeyRepository.findById(request.getJourneyId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
+
+            participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId())
+                    .orElseThrow(() -> new BadRequestException("Bạn không phải thành viên"));
+        }
 
         String tz = currentUser.getTimezone() != null ? currentUser.getTimezone() : "UTC";
         ZoneId userZone = ZoneId.of(tz);
         LocalDate todayLocal = LocalDate.now(userZone);
 
-        if (journey.getEndDate() != null && todayLocal.isAfter(journey.getEndDate().plusDays(1))) {
+        // [THÊM]: Bỏ qua check EndDate nếu đây là bài UNSORTED
+        if (!journey.getId().equals("UNSORTED") && journey.getEndDate() != null && todayLocal.isAfter(journey.getEndDate().plusDays(1))) {
             throw new BadRequestException("Hành trình này đã kết thúc (Hạn chót: " + journey.getEndDate() + ").");
         }
 
@@ -146,8 +161,9 @@ public class CheckinServiceImpl implements CheckinService {
             throw new BadRequestException("Vui lòng tải lên hình ảnh hoặc video.");
         }
 
+        // [THÊM]: Truyền thêm expiresAt vào hàm save
         return saveCheckinTransaction(currentUser, journey, participant, request,
-                imageUrl, videoUrl, imageFileId, mediaType, todayLocal);
+                imageUrl, videoUrl, imageFileId, mediaType, todayLocal, expiresAt);
     }
 
     @Transactional
@@ -158,7 +174,8 @@ public class CheckinServiceImpl implements CheckinService {
                                                      String videoUrl,
                                                      String imageFileId,
                                                      MediaType mediaType,
-                                                     LocalDate todayLocal) {
+                                                     LocalDate todayLocal,
+                                                     LocalDateTime expiresAt) { // [THÊM]: Tham số expiresAt
 
         CheckinStatus finalStatus = CheckinStatus.NORMAL;
         if (request.getStatusRequest() != null && request.getStatusRequest().toString().equalsIgnoreCase("REST")) {
@@ -170,11 +187,9 @@ public class CheckinServiceImpl implements CheckinService {
             finalActivityName = null;
         }
 
-        // [FIXED] Xử lý emotion: Đảm bảo chuyển thành String
-        String finalEmotion = Emotion.NORMAL.name(); // Giá trị mặc định
+        String finalEmotion = Emotion.NORMAL.name();
 
         if (request.getEmotion() != null) {
-            // Dù request.getEmotion() trả về String hay Enum, .toString() đều an toàn
             finalEmotion = request.getEmotion().toString();
         }
 
@@ -187,7 +202,6 @@ public class CheckinServiceImpl implements CheckinService {
                 .videoUrl(videoUrl)
                 .imageFileId(imageFileId)
                 .thumbnailUrl(imageUrl)
-                // [FIXED] Truyền String vào builder
                 .emotion(finalEmotion)
                 .activityType(request.getActivityType() != null ? request.getActivityType() : ActivityType.DEFAULT)
                 .activityName(finalActivityName)
@@ -197,6 +211,8 @@ public class CheckinServiceImpl implements CheckinService {
                 .visibility(request.getVisibility() != null ? request.getVisibility() : CheckinVisibility.PUBLIC)
                 .createdAt(LocalDateTime.now())
                 .checkinDate(todayLocal)
+                .chapterId(request.getChapterId()) // [THÊM]: Lưu Chapter ID
+                .expiresAt(expiresAt)              // [THÊM]: Lưu thời gian hết hạn
                 .build();
 
         checkin = checkinRepository.save(checkin);
@@ -214,6 +230,11 @@ public class CheckinServiceImpl implements CheckinService {
     }
 
     private void updateParticipantStats(JourneyParticipant participant, CheckinStatus status, LocalDate todayLocal) {
+        // [THÊM]: Nếu bài đăng UNSORTED (không có journey) thì bỏ qua không cần cộng streak
+        if (participant == null) {
+            return;
+        }
+
         boolean isFirstCheckinToday = false;
 
         if (participant.getLastCheckinAt() == null) {
@@ -253,14 +274,24 @@ public class CheckinServiceImpl implements CheckinService {
         participantRepository.save(participant);
     }
 
+    // [THÊM]: Bổ sung biến chapterId vào interface hàm để hỗ trợ filter Chapter
     @Override
     @Transactional(readOnly = true)
-    public Page<CheckinResponse> getJourneyFeed(String journeyId, Pageable pageable, User currentUser) {
-        if (!participantRepository.existsByJourneyIdAndUserId(journeyId, currentUser.getId())) {
+    public Page<CheckinResponse> getJourneyFeed(String journeyId, String chapterId, Pageable pageable, User currentUser) {
+        // [THÊM]: Bypass check quyền nếu là UNSORTED
+        if (!journeyId.equals("UNSORTED") && !participantRepository.existsByJourneyIdAndUserId(journeyId, currentUser.getId())) {
             throw new BadRequestException("Không có quyền xem");
         }
-        return checkinRepository.findByJourneyIdOrderByCreatedAtDesc(journeyId, pageable)
-                .map(checkinMapper::toResponse)
+
+        Page<Checkin> checkins;
+        // [THÊM]: Logic lọc theo chapter
+        if (chapterId != null && !chapterId.trim().isEmpty()) {
+            checkins = checkinRepository.findByJourneyIdAndChapterIdOrderByCreatedAtDesc(journeyId, chapterId, pageable);
+        } else {
+            checkins = checkinRepository.findByJourneyIdOrderByCreatedAtDesc(journeyId, pageable);
+        }
+
+        return checkins.map(checkinMapper::toResponse)
                 .map(this::enrichResponse);
     }
 
@@ -271,7 +302,6 @@ public class CheckinServiceImpl implements CheckinService {
         Pageable pageable = PageRequest.of(0, limit);
         Set<String> excludedUserIds = getExcludedUserIds(currentUser.getId());
 
-        // Lọc 3 ngày
         LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
 
         return checkinRepository.findUnifiedFeedRecent(
@@ -287,16 +317,20 @@ public class CheckinServiceImpl implements CheckinService {
                 .collect(Collectors.toList());
     }
 
+    // [THÊM]: Bổ sung biến chapterId vào đây tương tự
     @Override
     @Transactional(readOnly = true)
-    public List<CheckinResponse> getJourneyFeedByCursor(String journeyId, User currentUser, LocalDateTime cursor, int limit) {
-        if (!participantRepository.existsByJourneyIdAndUserId(journeyId, currentUser.getId())) {
+    public List<CheckinResponse> getJourneyFeedByCursor(String journeyId, String chapterId, User currentUser, LocalDateTime cursor, int limit) {
+        if (!journeyId.equals("UNSORTED") && !participantRepository.existsByJourneyIdAndUserId(journeyId, currentUser.getId())) {
             throw new BadRequestException("Bạn không có quyền xem hành trình này");
         }
         if (cursor == null) cursor = LocalDateTime.now();
         Pageable pageable = PageRequest.of(0, limit);
         Set<String> excludedUserIds = getExcludedUserIds(currentUser.getId());
 
+        // Ghi chú: Vì bạn đang dùng custom Query (findJourneyFeedByCursor) trong CheckinRepository
+        // Nên nếu muốn lọc theo Chapter ở chế độ Cursor, bạn sẽ cần báo bạn BE viết thêm 1 hàm findJourneyFeedByChapterAndCursor vào Repo nhé.
+        // Tạm thời nếu ko có chapterId, ta vẫn dùng hàm cũ của bạn:
         return checkinRepository.findJourneyFeedByCursor(journeyId, cursor, excludedUserIds, pageable)
                 .stream()
                 .map(checkinMapper::toResponse)
