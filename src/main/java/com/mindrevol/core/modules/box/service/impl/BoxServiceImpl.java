@@ -10,8 +10,8 @@ import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.entity.BoxInvitation;
 import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.entity.BoxRole;
-import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
-import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberAddedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberInvitedEvent;
 import com.mindrevol.core.modules.box.mapper.BoxMapper;
 import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
@@ -47,7 +47,7 @@ public class BoxServiceImpl implements BoxService {
     private final ApplicationEventPublisher eventPublisher;
 
     // =========================================================================
-    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN
+    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN (CODE CŨ CỦA BẠN)
     // =========================================================================
 
     @Override
@@ -123,16 +123,20 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
+        // Kiểm tra quyền: Chỉ Admin mới được sửa Box
         if (!BoxRole.ADMIN.equals(myMembership.getRole())) {
             throw new BadRequestException("Chỉ Admin mới có quyền chỉnh sửa Box");
         }
 
+        // Cập nhật các trường có thay đổi
         if (request.getName() != null) box.setName(request.getName());
         if (request.getDescription() != null) box.setDescription(request.getDescription());
         if (request.getThemeSlug() != null) box.setThemeSlug(request.getThemeSlug());
         if (request.getAvatar() != null) box.setAvatar(request.getAvatar());
 
         boxRepository.save(box);
+
+        // Gọi lại hàm getBoxDetail để trả về dữ liệu mới nhất
         return getBoxDetail(boxId, userId);
     }
 
@@ -177,8 +181,10 @@ public class BoxServiceImpl implements BoxService {
             throw new BadRequestException("Bạn không phải thành viên của Box này nên không thể mời người khác");
         }
 
-        User invitee = userRepository.findById(inviteeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng được mời không tồn tại"));
+        User targetUser = userRepository.findById(inviteeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng cần mời"));
+        User requesterUser = userRepository.findById(inviterId)
+                .orElseThrow(() -> new ResourceNotFoundException("Lỗi xác thực người mời"));
 
         boolean isInviteeAlreadyInBox = boxMemberRepository.findByBoxIdAndUserId(boxId, inviteeId).isPresent();
         if (isInviteeAlreadyInBox || box.getOwner().getId().equals(inviteeId)) {
@@ -193,7 +199,7 @@ public class BoxServiceImpl implements BoxService {
         BoxInvitation invitation = BoxInvitation.builder()
                 .box(box)
                 .sender(userRepository.getReferenceById(inviterId))
-                .recipient(invitee)
+                .recipient(targetUser)
                 .status("PENDING")
                 .build();
 
@@ -201,13 +207,7 @@ public class BoxServiceImpl implements BoxService {
         invitation = boxInvitationRepository.save(invitation);
 
         // 📢 Phát sự kiện: Đã gửi lời mời
-        eventPublisher.publishEvent(BoxInvitedEvent.builder()
-                .invitationId(invitation.getId())
-                .boxId(box.getId())
-                .boxName(box.getName())
-                .senderId(inviterId)
-                .recipientId(inviteeId)
-                .build());
+        eventPublisher.publishEvent(new BoxMemberInvitedEvent(box, requesterUser, targetUser));
     }
 
     @Override
@@ -234,12 +234,12 @@ public class BoxServiceImpl implements BoxService {
 
             invitation.setStatus("ACCEPTED");
 
-            // 📢 Phát sự kiện: Người dùng đã đồng ý vào Box
-            eventPublisher.publishEvent(BoxMemberJoinedEvent.builder()
-                    .boxId(invitation.getBox().getId())
-                    .boxName(invitation.getBox().getName())
-                    .joinedUserId(userId)
-                    .build());
+            // 📢 SỰ KIỆN ĐƯỢC CẬP NHẬT TẠI ĐÂY
+            eventPublisher.publishEvent(new BoxMemberAddedEvent(
+                    invitation.getBox(),
+                    invitation.getSender(),
+                    invitation.getRecipient()
+            ));
         } else {
             invitation.setStatus("REJECTED");
         }

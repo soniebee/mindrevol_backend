@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.box.controller;
 
+// 1. Đảm bảo có đầy đủ các import này
 import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.InviteMemberRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateBoxRequest;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class BoxController {
 
+    // 2. Phải có dòng khai báo này thì các hàm bên dưới mới dùng được 'boxService'
     private final BoxService boxService;
 
     // 1. Tạo Box mới

@@ -11,7 +11,7 @@ import java.util.List;
 
 @Data
 public class CheckinRequest {
-    @NotNull(message = "Hành trình là bắt buộc")
+//    @NotNull(message = "Hành trình là bắt buộc")
     private String journeyId;
 
     @NotNull(message = "Ảnh check-in là bắt buộc")
@@ -25,6 +25,7 @@ public class CheckinRequest {
     private String activityName;       // Tên hiển thị ("Học bài", "Chill")
     private String locationName;       // Địa điểm check-in
     private List<String> tags;         // Tag bạn bè hoặc hashtag
+    private String chapterId;
 
     private CheckinStatus statusRequest = CheckinStatus.NORMAL;
     private CheckinVisibility visibility = CheckinVisibility.PUBLIC;

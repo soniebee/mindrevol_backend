@@ -50,6 +50,9 @@ public class CheckinResponse implements FeedItemResponse {
     private int reactionCount;
     private int commentCount;
     private List<CheckinReactionDetailResponse> latestReactions; // 3 người thả tim gần nhất
+
+    private String chapterId; 
+    private LocalDateTime expiresAt;
     
     @Override
     public FeedItemType getType() {
