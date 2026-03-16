@@ -39,4 +39,4 @@ out/
 logs/
 *.log
 
-src/main/resources/
+/src/main/resources/application*.properties
