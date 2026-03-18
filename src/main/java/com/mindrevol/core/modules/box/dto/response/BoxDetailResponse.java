@@ -9,11 +9,12 @@ import java.util.List;
 @NoArgsConstructor @AllArgsConstructor
 public class BoxDetailResponse {
 
-    private String id; // Trở về String
+    private String id;
     private String name;
     private String description;
     private String themeSlug;
     private String avatar;
+    private String textPosition; // Trả về cho FE biết đường mà render
     private long memberCount;
     private String myRole;
 
