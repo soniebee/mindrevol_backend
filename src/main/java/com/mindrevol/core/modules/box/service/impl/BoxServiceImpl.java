@@ -10,6 +10,7 @@ import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.entity.BoxInvitation;
 import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.entity.BoxRole;
+import com.mindrevol.core.modules.box.event.BoxCreatedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberAddedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberInvitedEvent;
 import com.mindrevol.core.modules.box.mapper.BoxMapper;
@@ -47,7 +48,7 @@ public class BoxServiceImpl implements BoxService {
     private final ApplicationEventPublisher eventPublisher;
 
     // =========================================================================
-    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN
+    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN (CODE CŨ CỦA BẠN)
     // =========================================================================
 
     @Override
@@ -56,16 +57,44 @@ public class BoxServiceImpl implements BoxService {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy User"));
 
+        // 1. Map dữ liệu cơ bản (bao gồm cả textPosition nếu có truyền)
         Box box = boxMapper.toEntity(request);
         box.setOwner(owner);
         box.setLastActivityAt(LocalDateTime.now());
+
+        // Đảm bảo cập nhật thủ công nếu Mapper chưa map kịp
+        if (request.getTextPosition() != null) {
+            box.setTextPosition(request.getTextPosition());
+        }
+
         box = boxRepository.save(box);
+
+<<<<<<< Updated upstream
+=======
+        // 2. Add owner vào làm ADMIN
+>>>>>>> Stashed changes
         BoxMember member = BoxMember.builder()
                 .box(box)
                 .user(owner)
                 .role(BoxRole.ADMIN)
                 .build();
         boxMemberRepository.save(member);
+
+        // 🔥 PRO MAX: 3. Tự động gửi lời mời bạn bè nếu có danh sách inviteUserIds
+        if (request.getInviteUserIds() != null && !request.getInviteUserIds().isEmpty()) {
+            for (String inviteeId : request.getInviteUserIds()) {
+                try {
+                    inviteMember(box.getId(), inviteeId, owner.getId());
+                } catch (Exception e) {
+                    // Nếu lỗi khi mời 1 người (vd: đã mời rồi), bỏ qua để tiếp tục tạo Box
+                }
+            }
+        }
+
+        // 🔥 PRO MAX: 4. Bắn sự kiện ra để Module Chat tự động tạo Group Chat
+        eventPublisher.publishEvent(new BoxCreatedEvent(
+                box.getId(), box.getName(), owner.getId(), List.of(owner.getId())
+        ));
 
         return boxMapper.toDetailResponse(box, 1, BoxRole.ADMIN.name());
     }
@@ -90,6 +119,7 @@ public class BoxServiceImpl implements BoxService {
         long memberCount = boxMemberRepository.countByBoxId(boxId);
         BoxDetailResponse response = boxMapper.toDetailResponse(box, memberCount, myMembership.getRole().name());
 
+        // Giữ nguyên logic chia Hành trình (Journey) rất hay của bạn
         List<JourneyResponse> ongoing = new ArrayList<>();
         List<JourneyResponse> ended = new ArrayList<>();
 
@@ -110,6 +140,7 @@ public class BoxServiceImpl implements BoxService {
         }
         response.setOngoingJourneys(ongoing);
         response.setEndedJourneys(ended);
+
         return response;
     }
 
@@ -122,16 +153,22 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
+        // Kiểm tra quyền: Chỉ Admin mới được sửa Box
         if (!BoxRole.ADMIN.equals(myMembership.getRole())) {
             throw new BadRequestException("Chỉ Admin mới có quyền chỉnh sửa Box");
         }
 
+        // Cập nhật các trường có thay đổi
         if (request.getName() != null) box.setName(request.getName());
         if (request.getDescription() != null) box.setDescription(request.getDescription());
         if (request.getThemeSlug() != null) box.setThemeSlug(request.getThemeSlug());
         if (request.getAvatar() != null) box.setAvatar(request.getAvatar());
+        // Thêm cập nhật textPosition từ màn hình FE mới
+        if (request.getTextPosition() != null) box.setTextPosition(request.getTextPosition());
 
         boxRepository.save(box);
+
+        // Gọi lại hàm getBoxDetail để trả về dữ liệu mới nhất
         return getBoxDetail(boxId, userId);
     }
 
@@ -158,11 +195,48 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
+        // 🔥 Thêm chốt chặn: Không cho phép Chủ phòng tự ý rời đi mà không chuyển nhượng
+        if (myMembership.getBox().getOwner().getId().equals(userId)) {
+            throw new BadRequestException("Chủ phòng không thể rời đi. Hãy chuyển nhượng quyền chủ phòng trước hoặc giải tán Box.");
+        }
+
         boxMemberRepository.delete(myMembership);
     }
 
+    // 🔥 TÍNH NĂNG MỚI: Chuyển nhượng Chủ Phòng
+    @Override
+    @Transactional
+    public void transferOwnership(String boxId, String newOwnerId, String currentOwnerId) {
+        Box box = boxRepository.findById(boxId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
+
+        if (!box.getOwner().getId().equals(currentOwnerId)) {
+            throw new BadRequestException("Chỉ chủ phòng hiện tại mới được quyền chuyển nhượng");
+        }
+        if (currentOwnerId.equals(newOwnerId)) {
+            throw new BadRequestException("Không thể chuyển nhượng cho chính mình");
+        }
+
+        // Đổi Owner của Box
+        User newOwner = userRepository.findById(newOwnerId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng"));
+        box.setOwner(newOwner);
+        boxRepository.save(box);
+
+        // Hạ cấp chủ cũ xuống MEMBER
+        BoxMember oldOwnerMem = boxMemberRepository.findByBoxIdAndUserId(boxId, currentOwnerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Thành viên không tồn tại"));
+        oldOwnerMem.setRole(BoxRole.MEMBER);
+        boxMemberRepository.save(oldOwnerMem);
+
+        // Thăng cấp chủ mới lên ADMIN
+        BoxMember newOwnerMem = boxMemberRepository.findByBoxIdAndUserId(boxId, newOwnerId)
+                .orElseThrow(() -> new BadRequestException("Người được chuyển nhượng chưa tham gia Box"));
+        newOwnerMem.setRole(BoxRole.ADMIN);
+        boxMemberRepository.save(newOwnerMem);
+    }
+
+
     // =========================================================================
-    // PHẦN 2: QUẢN LÝ THÀNH VIÊN VÀ LỜI MỜI
+    // PHẦN 2: QUẢN LÝ THÀNH VIÊN VÀ LỜI MỜI (Giữ nguyên gốc)
     // =========================================================================
 
     @Override
@@ -198,10 +272,8 @@ public class BoxServiceImpl implements BoxService {
                 .status("PENDING")
                 .build();
 
-        // Đã mở comment lưu database
         invitation = boxInvitationRepository.save(invitation);
 
-        // 📢 Phát sự kiện: Đã gửi lời mời
         eventPublisher.publishEvent(new BoxMemberInvitedEvent(box, requesterUser, targetUser));
     }
 
@@ -229,7 +301,6 @@ public class BoxServiceImpl implements BoxService {
 
             invitation.setStatus("ACCEPTED");
 
-            // 📢 SỰ KIỆN ĐƯỢC CẬP NHẬT TẠI ĐÂY
             eventPublisher.publishEvent(new BoxMemberAddedEvent(
                     invitation.getBox(),
                     invitation.getSender(),
