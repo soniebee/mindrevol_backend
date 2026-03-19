@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.mood.service.impl;
 
+import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.modules.box.repository.BoxRepository;
@@ -34,7 +35,6 @@ public class MoodServiceImpl implements MoodService {
     private final UserRepository userRepository;
     private final BoxMemberRepository boxMemberRepository;
 
-    // Đã tiêm Mapper và EventPublisher vào đây
     private final MoodMapper moodMapper;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -42,30 +42,40 @@ public class MoodServiceImpl implements MoodService {
     @Transactional
     public MoodResponse createOrUpdateMood(String boxId, String userId, MoodRequest request) {
         if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
-            throw new RuntimeException("Bạn không ở trong Box này!");
+            throw new BadRequestException("Bạn không ở trong Box này!");
         }
 
-        Optional<Mood> existingMood = moodRepository.findByBoxIdAndUserId(boxId, userId);
+        LocalDateTime now = LocalDateTime.now();
+        // 🔥 PRO MAX: Sử dụng hàm AndExpiresAtAfter để đảm bảo chỉ lôi ra trạng thái CÒN HẠN
+        Optional<Mood> existingMood = moodRepository.findByBoxIdAndUserIdAndExpiresAtAfter(boxId, userId, now);
 
         Mood mood;
         if (existingMood.isPresent()) {
             mood = existingMood.get();
             mood.setIcon(request.getIcon());
             mood.setMessage(request.getMessage());
-            mood.setExpiresAt(LocalDateTime.now().plusHours(24)); // Đếm lại 24h
+            mood.setExpiresAt(now.plusHours(24)); // Đếm lại 24h
+
+            // 🔥 PRO MAX: Quét sạch tim của trạng thái cũ để tránh bị "nhận vơ"
+            moodReactionRepository.deleteAllByMoodId(mood.getId());
+
+            // 🔥 ULTIMATE: Xóa sạch cả trong bộ nhớ tạm của Hibernate để tránh lỗi đồng bộ
+            if (mood.getReactions() != null) {
+                mood.getReactions().clear();
+            }
         } else {
             mood = Mood.builder()
                     .box(boxRepository.getReferenceById(boxId))
                     .user(userRepository.getReferenceById(userId))
                     .icon(request.getIcon())
                     .message(request.getMessage())
-                    .expiresAt(LocalDateTime.now().plusHours(24))
+                    .expiresAt(now.plusHours(24))
                     .build();
         }
 
         mood = moodRepository.save(mood);
 
-        // 📢 Phát sự kiện (Không cần dính dáng logic thông báo ở đây)
+        // 📢 Bắn sự kiện tạo Mood (Để nếu cần thiết WebSocket có thể đẩy thông báo)
         eventPublisher.publishEvent(MoodCreatedEvent.builder()
                 .moodId(mood.getId())
                 .boxId(mood.getBox().getId())
@@ -73,25 +83,40 @@ public class MoodServiceImpl implements MoodService {
                 .icon(mood.getIcon())
                 .build());
 
-        // Gọi qua Mapper riêng
         return moodMapper.toResponse(mood);
     }
 
     @Override
-    public List<MoodResponse> getActiveMoodsInBox(String boxId) {
+    @Transactional(readOnly = true)
+    public List<MoodResponse> getActiveMoodsInBox(String boxId, String userId) {
+        // 🔥 PRO MAX: Chặn người ngoài xem trộm trạng thái của Box
+        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
+            throw new BadRequestException("Bạn không có quyền xem trạng thái của Box này");
+        }
+
         List<Mood> activeMoods = moodRepository.findByBoxIdAndExpiresAtAfterOrderByUpdatedAtDesc(boxId, LocalDateTime.now());
 
         return activeMoods.stream()
-                .map(moodMapper::toResponse) // Gọi qua Mapper riêng
+                .map(moodMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public void reactToMood(String moodId, String userId, String emoji) {
-        Mood mood = moodRepository.findById(moodId)
-                .orElseThrow(() -> new ResourceNotFoundException("Mood không tồn tại hoặc đã hết hạn"));
+    public void reactToMood(String boxId, String moodId, String userId, String emoji) {
+        // Kiểm tra quyền
+        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
+            throw new BadRequestException("Phải là thành viên mới được thả cảm xúc");
+        }
 
+        Mood mood = moodRepository.findById(moodId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mood không tồn tại"));
+
+        if (mood.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Trạng thái này đã hết hạn");
+        }
+
+        // 🔥 PRO MAX: Dù user có spam bấm 50 lần, Database vẫn chỉ lưu 1 dòng duy nhất!
         Optional<MoodReaction> existingReaction = moodReactionRepository.findByMoodIdAndUserId(moodId, userId);
 
         if (existingReaction.isPresent()) {
@@ -107,7 +132,8 @@ public class MoodServiceImpl implements MoodService {
             moodReactionRepository.save(newReaction);
         }
 
-        // 📢 Phát sự kiện (Chỉ phát nếu không phải tự thả tim cho chính mình)
+        // 📢 Bắn sự kiện React: Để làm hiệu ứng "Bão Locket".
+        // 🔥 ULTIMATE: Không cho phép tự tạo bão trên chính status của mình (người lạ thả thì mới bay icon)
         if (!userId.equals(mood.getUser().getId())) {
             eventPublisher.publishEvent(MoodReactedEvent.builder()
                     .moodId(mood.getId())
@@ -117,5 +143,25 @@ public class MoodServiceImpl implements MoodService {
                     .emoji(emoji)
                     .build());
         }
+    }
+
+    @Override
+    @Transactional
+    public void removeReaction(String moodId, String userId) {
+        // 🔥 ULTIMATE: Tính năng gỡ cảm xúc (Hủy thả tim)
+        MoodReaction reaction = moodReactionRepository.findByMoodIdAndUserId(moodId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bạn chưa thả cảm xúc vào trạng thái này"));
+
+        moodReactionRepository.delete(reaction);
+    }
+
+    @Override
+    @Transactional
+    public void deleteMyMood(String boxId, String userId) {
+        // 🔥 ULTIMATE: Hard Delete - Tìm trạng thái hiện tại (còn hạn) và xóa thẳng tay cho nhẹ Database
+        Mood mood = moodRepository.findByBoxIdAndUserIdAndExpiresAtAfter(boxId, userId, LocalDateTime.now())
+                .orElseThrow(() -> new ResourceNotFoundException("Bạn không có trạng thái nào trong Không gian này"));
+
+        moodRepository.delete(mood);
     }
 }
