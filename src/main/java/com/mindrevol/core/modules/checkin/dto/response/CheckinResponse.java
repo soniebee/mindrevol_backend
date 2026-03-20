@@ -28,9 +28,9 @@ public class CheckinResponse implements FeedItemResponse {
     private String journeyName;
 
     // --- MEDIA ---
-    private String imageUrl;      // Nếu là Video thì đây là Thumbnail
-    private String videoUrl;      // [MỚI] Link video (nếu có)
-    private MediaType mediaType;  // [MỚI] IMAGE hoặc VIDEO
+    private String imageUrl;
+    private String videoUrl;
+    private MediaType mediaType;
 
     // --- CONTENT ---
     private String caption;
@@ -49,11 +49,11 @@ public class CheckinResponse implements FeedItemResponse {
     // --- INTERACTION ---
     private int reactionCount;
     private int commentCount;
-    private List<CheckinReactionDetailResponse> latestReactions; // 3 người thả tim gần nhất
+    private List<CheckinReactionDetailResponse> latestReactions;
 
-    private String chapterId; 
-    private LocalDateTime expiresAt;
-    
+    // [THÊM MỚI Ở ĐÂY] Cờ nhận biết bài viết này đã được user hiện tại lưu hay chưa
+    private boolean isSaved;
+
     @Override
     public FeedItemType getType() {
         return FeedItemType.POST;
