@@ -19,12 +19,12 @@ public class CreateBoxRequest {
     private String description;
 
     @NotBlank(message = "Vui lòng chọn một Theme")
-    private String themeSlug; // Bắt buộc phải chọn theme (như MVP bạn đã nói)
+    private String themeSlug;
 
-    // Tùy chọn: Chọn một cái icon/emoji
     private String avatar;
 
-    // Tùy chọn: Gửi kèm danh sách ID của bạn bè muốn mời ngay lúc tạo
-    // Nếu mảng này rỗng (null hoặc []) -> Nó là Solo Box
+    private String textPosition; // Vị trí do FE truyền lên
+
+    // Danh sách ID của bạn bè muốn mời ngay lúc tạo
     private List<String> inviteUserIds;
 }

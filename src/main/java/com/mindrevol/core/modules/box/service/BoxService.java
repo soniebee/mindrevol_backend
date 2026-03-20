@@ -38,4 +38,7 @@ public interface BoxService {
 
     // 10. Cập nhật quyền thành viên (Chỉ Admin/Owner)
     void updateMemberRole(String boxId, String memberId, BoxRole newRole, String adminId);
+
+    // 11. Chuyển nhượng quyền sở hữu Box
+    void transferOwnership(String boxId, String newOwnerId, String currentOwnerId);
 }

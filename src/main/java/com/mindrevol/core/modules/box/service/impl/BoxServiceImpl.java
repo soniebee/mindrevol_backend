@@ -185,24 +185,23 @@ public class BoxServiceImpl implements BoxService {
             throw new BadRequestException("Người này đã là thành viên của Box");
         }
 
-        boolean hasPendingInvite = boxInvitationRepository.existsByBoxIdAndRecipientIdAndStatus(boxId, inviteeId, "PENDING");
+        boolean hasPendingInvite = boxInvitationRepository.existsByBoxIdAndInviteeIdAndStatus(boxId, inviteeId, "PENDING");
         if (hasPendingInvite) {
             throw new BadRequestException("Đã gửi lời mời đến người này rồi, đang chờ họ đồng ý");
         }
 
         BoxInvitation invitation = BoxInvitation.builder()
                 .box(box)
-                .sender(userRepository.getReferenceById(inviterId))
-                .recipient(invitee)
+                .inviter(userRepository.getReferenceById(inviterId))
+                .invitee(userRepository.getReferenceById(inviteeId))
                 .status("PENDING")
                 .build();
 
-        // Đã mở comment lưu database
         invitation = boxInvitationRepository.save(invitation);
 
         // 📢 Phát sự kiện: Đã gửi lời mời
         eventPublisher.publishEvent(BoxInvitedEvent.builder()
-                .invitationId(invitation.getId())
+                .invitationId(String.valueOf(invitation.getId())) // 🔥 Đã ép kiểu Long sang String
                 .boxId(box.getId())
                 .boxName(box.getName())
                 .senderId(inviterId)
@@ -213,10 +212,11 @@ public class BoxServiceImpl implements BoxService {
     @Override
     @Transactional
     public void handleInvitation(String invitationId, boolean isAccepted, String userId) {
-        BoxInvitation invitation = boxInvitationRepository.findById(invitationId)
+        // 🔥 Đã ép kiểu String sang Long
+        BoxInvitation invitation = boxInvitationRepository.findById(Long.valueOf(invitationId))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời này"));
 
-        if (!invitation.getRecipient().getId().equals(userId)) {
+        if (!invitation.getInvitee().getId().equals(userId)) {
             throw new BadRequestException("Bạn không có quyền xử lý lời mời của người khác");
         }
 
@@ -227,7 +227,7 @@ public class BoxServiceImpl implements BoxService {
         if (isAccepted) {
             BoxMember newMember = BoxMember.builder()
                     .box(invitation.getBox())
-                    .user(invitation.getRecipient())
+                    .user(invitation.getInvitee())
                     .role(BoxRole.MEMBER)
                     .build();
             boxMemberRepository.save(newMember);
@@ -287,5 +287,31 @@ public class BoxServiceImpl implements BoxService {
 
         member.setRole(newRole);
         boxMemberRepository.save(member);
+    }
+
+    @Override
+    @Transactional
+    public void transferOwnership(String boxId, String newOwnerId, String currentOwnerId) {
+        // 1. Tìm Box
+        Box box = boxRepository.findById(boxId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
+
+        // 2. Kiểm tra xem người gọi có phải là Owner hiện tại không
+        if (!box.getOwner().getId().equals(currentOwnerId)) {
+            throw new BadRequestException("Chỉ chủ sở hữu hiện tại mới có quyền chuyển nhượng quyền quản lý");
+        }
+
+        // 3. Kiểm tra xem User mới có tồn tại không
+        User newOwner = userRepository.findById(newOwnerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng nhận chuyển nhượng không tồn tại"));
+
+        // 4. Kiểm tra xem User mới có đang là thành viên của Box không
+        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, newOwnerId)) {
+            throw new BadRequestException("Người nhận chuyển nhượng phải là thành viên trong Box này");
+        }
+
+        // 5. Tiến hành đổi chủ
+        box.setOwner(newOwner);
+        boxRepository.save(box);
     }
 }
