@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <include file="modules/001-user-auth.xml" relativeToChangelogFile="true"/>
+    <include file="modules/002-system.xml" relativeToChangelogFile="true"/>
+    <include file="modules/003-journey.xml" relativeToChangelogFile="true"/>
+    <include file="modules/004-checkin.xml" relativeToChangelogFile="true"/>
+    <include file="modules/005-habit-gamification.xml" relativeToChangelogFile="true"/>
+    <include file="modules/006-social-ops.xml" relativeToChangelogFile="true"/>
+    
+    <include file="patches/007-fix-invitation-constraint.xml" relativeToChangelogFile="true"/>
+    <include file="patches/008-add-journey-active-days.xml" relativeToChangelogFile="true"/>
+    <include file="patches/009-add-checkin-context.xml" relativeToChangelogFile="true"/>
+    <include file="patches/010-add-checkin-context.xml" relativeToChangelogFile="true"/>
+    <include file="patches/011-drop-legacy-features.xml" relativeToChangelogFile="true"/>
+    <include file="patches/012-add-subscription-fields.xml" relativeToChangelogFile="true"/>
+    <include file="patches/013-add-image-file-id.xml" relativeToChangelogFile="true"/>
+    <include file="patches/014-add-video-support.xml" relativeToChangelogFile="true"/>
+    <include file="patches/015-remove-verification.xml" relativeToChangelogFile="true"/>
+    <include file="patches/016-add-internal-ads.xml" relativeToChangelogFile="true"/>
+    <include file="patches/017-add-tags-to-ads.xml" relativeToChangelogFile="true"/>
+    <include file="patches/018-remove-daily-limit.xml" relativeToChangelogFile="true"/>
+    <include file="patches/019-drop-otp-token-table.xml" relativeToChangelogFile="true"/>
+    <include file="patches/020-add-journey-theme-thumbnail.xml" relativeToChangelogFile="true"/>
+    <include file="patches/021-add-box-module.xml" relativeToChangelogFile="true"/>
+    <include file="patches/022-add-journey-color-avatar.xml" relativeToChangelogFile="true"/>
+    <include file="patches/023-add-box-id-to-conversation.xml" relativeToChangelogFile="true"/>
+    <include file="patches/024-add-coordinates-to-checkin.xml" relativeToChangelogFile="true"/>
+    <include file="patches/025-create-box-invitations.xml" relativeToChangelogFile="true"/>
+    <include file="patches/026-add-saved-checkins.xml" relativeToChangelogFile="true"/>
+    <include file="patches/027-add-box-positions.xml" relativeToChangelogFile="true"/>
+    <include file="patches/028-add-mood-module.xml" relativeToChangelogFile="true"/>
+    <include file="patches/029-fix-mood-audit-columns.xml" relativeToChangelogFile="true"/>
+    <include file="patches/030-force-fix.xml" relativeToChangelogFile="true"/>
+    <include file="patches/031-add-profile-visibility.xml" relativeToChangelogFile="true"/>
+    
+</databaseChangeLog>
