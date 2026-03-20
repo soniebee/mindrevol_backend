@@ -7,7 +7,7 @@ plugins {
 
 group = 'com.mindrevol'
 version = '0.0.1-SNAPSHOT'
-description = 'Mindrevol backend service'
+description = 'Mindrevol core service'
 
 java {
     toolchain {
