@@ -117,7 +117,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional(readOnly = true)
     public Page<MessageResponse> getConversationMessages(String conversationId, Pageable pageable) { 
-        // Lưu ý: Backend vẫn trả về DESC (mới nhất trước) để phân trang đúng.
+        // Lưu ý: core vẫn trả về DESC (mới nhất trước) để phân trang đúng.
         // Frontend sẽ chịu trách nhiệm đảo ngược lại để hiển thị.
         return messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId, pageable)
                 .map(chatMapper::toResponse);

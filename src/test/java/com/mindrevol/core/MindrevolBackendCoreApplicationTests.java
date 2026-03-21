@@ -6,7 +6,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("dev") // Dòng này "cứu" cả dự án đây
-class MindrevolBackendCoreApplicationTests {
+class MindrevolcoreCoreApplicationTests {
 
 	@Test
 	void contextLoads() {
