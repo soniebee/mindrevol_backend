@@ -4,11 +4,13 @@ import com.mindrevol.core.common.dto.ApiResponse;
 import com.mindrevol.core.common.utils.SecurityUtils;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.user.dto.request.UpdateProfileRequest;
+import com.mindrevol.core.modules.user.dto.request.UpdateNotificationSettingsRequest;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
 import com.mindrevol.core.modules.user.dto.response.UserDataExport;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
 import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.user.service.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -127,5 +129,20 @@ public class UserController {
         String userId = SecurityUtils.getCurrentUserId();
         userService.unlinkSocialAccount(userId, provider.toUpperCase());
         return ResponseEntity.ok(ApiResponse.success("Đã hủy liên kết tài khoản " + provider));
+    }
+
+    @GetMapping("/me/notification-settings")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserSettings>> getMyNotificationSettings() {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(userService.getNotificationSettings(userId)));
+    }
+
+    @PatchMapping("/me/notification-settings")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserSettings>> updateMyNotificationSettings(
+            @RequestBody UpdateNotificationSettingsRequest request) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(userService.updateNotificationSettings(userId, request)));
     }
 }

@@ -2,17 +2,27 @@ package com.mindrevol.core.modules.notification.listener;
 
 import com.mindrevol.core.common.event.CheckinSuccessEvent;
 import com.mindrevol.core.modules.box.entity.Box;
+import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberAddedEvent;
-import com.mindrevol.core.modules.box.event.BoxMemberInvitedEvent;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
+import com.mindrevol.core.modules.checkin.event.CheckinReactedEvent;
 import com.mindrevol.core.modules.checkin.event.CommentPostedEvent;
 import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
 import com.mindrevol.core.modules.journey.entity.JourneyParticipant;
 import com.mindrevol.core.modules.journey.repository.JourneyParticipantRepository;
+import com.mindrevol.core.modules.mood.entity.Mood;
+import com.mindrevol.core.modules.mood.event.MoodReactedEvent;
+import com.mindrevol.core.modules.mood.repository.MoodRepository;
 import com.mindrevol.core.modules.notification.entity.NotificationType;
-import com.mindrevol.core.modules.notification.service.FirebaseService;
 import com.mindrevol.core.modules.notification.service.NotificationService;
 import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.repository.UserRepository;
+
+// [BỔ SUNG SPRINT 2]
+// import com.mindrevol.core.modules.user.event.FriendRequestEvent; //task 401
+import org.springframework.data.redis.core.StringRedisTemplate;
+import java.util.concurrent.TimeUnit;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -22,9 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
@@ -32,52 +44,49 @@ import java.util.Map;
 public class NotificationEventListener {
 
     private final NotificationService notificationService;
-    private final FirebaseService firebaseService;
     private final CheckinRepository checkinRepository;
     private final JourneyParticipantRepository participantRepository;
+    private final MoodRepository moodRepository;
+    private final UserRepository userRepository;
+
+    // BỔ SUNG SPRINT 2: Tiêm Redis Template để xử lý chống spam
+    private final StringRedisTemplate redisTemplate;
+
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([A-Za-z0-9_.]+)");
 
     // --- 1. XỬ LÝ KHI CÓ BÀI ĐĂNG MỚI (CHECK-IN) ---
     @Async
     @EventListener
     @Transactional(readOnly = true)
     public void handleCheckinSuccess(CheckinSuccessEvent event) {
-        log.info("🔔 Processing Notification for Checkin: {}", event.getCheckinId());
-
         Checkin checkin = checkinRepository.findById(event.getCheckinId()).orElse(null);
-        if (checkin == null) return;
+        if (checkin == null) {
+            return;
+        }
 
         User author = checkin.getUser();
         String journeyName = checkin.getJourney().getName();
         String journeyId = checkin.getJourney().getId();
 
         List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
+        for (JourneyParticipant participant : participants) {
+            User recipient = participant.getUser();
+            if (recipient.getId().equals(author.getId())) {
+                continue;
+            }
 
-        for (JourneyParticipant p : participants) {
-            User recipient = p.getUser();
-
-            if (recipient.getId().equals(author.getId())) continue;
-
-            String title = "Khoảnh khắc mới! 📸";
-            String body = author.getFullname() + " vừa check-in trong " + journeyName;
-
-            notificationService.sendAndSaveNotification(
+            notificationService.sendAndSaveNotificationFull(
                     recipient.getId(),
                     author.getId(),
                     NotificationType.CHECKIN,
-                    title,
-                    body,
+                    "Khoanh khac moi",
+                    author.getFullname() + " vừa check-in trong " + journeyName,
                     checkin.getId(),
-                    checkin.getImageUrl()
+                    checkin.getImageUrl(),
+                    "noti.checkin.new",
+                    "[\"" + author.getFullname() + "\",\"" + journeyName + "\"]",
+                    null
             );
-
-            if (recipient.getFcmToken() != null) {
-                Map<String, String> data = new HashMap<>();
-                data.put("type", "CHECKIN");
-                data.put("targetId", checkin.getId());
-                data.put("journeyId", journeyId);
-
-                firebaseService.sendNotification(recipient.getFcmToken(), title, body, data);
-            }
         }
     }
 
@@ -90,33 +99,24 @@ public class NotificationEventListener {
         User postOwner = checkin.getUser();
 
         if (!postOwner.getId().equals(commenter.getId())) {
-
-            String title = "Bình luận mới 💬";
-            String body = commenter.getFullname() + ": " + event.getContent();
-
-            notificationService.sendAndSaveNotification(
+            notificationService.sendAndSaveNotificationFull(
                     postOwner.getId(),
                     commenter.getId(),
                     NotificationType.COMMENT,
-                    title,
-                    body,
+                    "Binh luan moi",
+                    commenter.getFullname() + ": " + event.getContent(),
                     checkin.getId(),
-                    commenter.getAvatarUrl()
+                    commenter.getAvatarUrl(),
+                    "noti.comment.new",
+                    "[\"" + commenter.getFullname() + "\"]",
+                    null
             );
-
-            if (postOwner.getFcmToken() != null) {
-                Map<String, String> data = new HashMap<>();
-                data.put("type", "COMMENT");
-                data.put("targetId", checkin.getId());
-
-                firebaseService.sendNotification(postOwner.getFcmToken(), title, body, data);
-            }
-
-            log.info("Sent notification for comment on checkin {}", checkin.getId());
         }
+
+        notifyMentions(event, checkin, commenter);
     }
 
-    // --- [THÊM MỚI] 3. XỬ LÝ KHI CÓ NGƯỜI ĐƯỢC THÊM VÀO BOX ---
+    // --- 3. XỬ LÝ KHI CÓ NGƯỜI ĐƯỢC THÊM VÀO BOX ---
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBoxMemberAdded(BoxMemberAddedEvent event) {
@@ -124,62 +124,174 @@ public class NotificationEventListener {
         User adder = event.getAdder();
         User newMember = event.getNewMember();
 
-        String title = "Không gian mới! 📦";
-        String body = adder.getFullname() + " đã thêm bạn vào không gian " + box.getName();
-
-        // 1. Lưu DB và gửi qua WebSocket
-        notificationService.sendAndSaveNotification(
+        notificationService.sendAndSaveNotificationFull(
                 newMember.getId(),
                 adder.getId(),
                 NotificationType.BOX_ADDED,
-                title,
-                body,
-                box.getId(), // ReferenceId là BoxId để khi click vào sẽ bay tới Box
-                box.getAvatar() != null ? box.getAvatar() : "📦" // Lấy Emoji của box làm icon thông báo
+                "Khong gian moi",
+                adder.getFullname() + " đã thêm bạn vào không gian " + box.getName(),
+                box.getId(),
+                box.getAvatar(),
+                "noti.box.added",
+                "[\"" + adder.getFullname() + "\",\"" + box.getName() + "\"]",
+                null
         );
-
-        // 2. Bắn Push Notification FCM
-        if (newMember.getFcmToken() != null) {
-            Map<String, String> data = new HashMap<>();
-            data.put("type", "BOX_ADDED");
-            data.put("targetId", box.getId());
-
-            firebaseService.sendNotification(newMember.getFcmToken(), title, body, data);
-        }
-
-        log.info("Sent notification: {} added {} to Box {}", adder.getId(), newMember.getId(), box.getId());
     }
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleBoxMemberInvited(BoxMemberInvitedEvent event) {
-        Box box = event.getBox();
-        User inviter = event.getInviter();
-        User invitee = event.getInvitee();
+    public void handleBoxInvited(BoxInvitedEvent event) {
+        User inviter = userRepository.findById(event.getSenderId()).orElse(null);
+        User invitee = userRepository.findById(event.getRecipientId()).orElse(null);
+        if (inviter == null || invitee == null) {
+            return;
+        }
 
-        String title = "Lời mời Không gian! 📦";
-        String body = inviter.getFullname() + " đã mời bạn tham gia vào " + box.getName();
-
-        // Lưu DB với Type BOX_INVITE
-        notificationService.sendAndSaveNotification(
+        notificationService.sendAndSaveNotificationFull(
                 invitee.getId(),
                 inviter.getId(),
                 NotificationType.BOX_INVITE,
-                title,
-                body,
-                box.getId(), // ReferenceId là BoxId
-                box.getAvatar() != null ? box.getAvatar() : "📦"
+                "Loi moi Khong gian",
+                inviter.getFullname() + " đã mời bạn tham gia vào " + event.getBoxName(),
+                event.getInvitationId(),
+                inviter.getAvatarUrl(),
+                "noti.box.invite",
+                "[\"" + inviter.getFullname() + "\",\"" + event.getBoxName() + "\"]",
+                "PENDING"
         );
+    }
 
-        // Push Notification FCM
-        if (invitee.getFcmToken() != null) {
-            Map<String, String> data = new HashMap<>();
-            data.put("type", "BOX_INVITE");
-            data.put("targetId", box.getId());
-
-            firebaseService.sendNotification(invitee.getFcmToken(), title, body, data);
+    // --- 4. XỬ LÝ TƯƠNG TÁC CHECK-IN (CÓ CHỐNG SPAM) ---
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleCheckinReacted(CheckinReactedEvent event) {
+        if (event.getCheckinOwnerId().equals(event.getReactorId())) {
+            return;
         }
 
-        log.info("Sent invite notification: {} invited {} to Box {}", inviter.getId(), invitee.getId(), box.getId());
+        // BỔ SUNG SPRINT 2 (TASK-503): Chống Spam bằng Redis Throttle
+        // Key: noti_throttle:{người_nhận}:{người_gửi}:REACTION_CHECKIN:{id_bài_viết}
+        String throttleKey = String.format("noti_throttle:%s:%s:REACTION_CHECKIN:%s",
+                event.getCheckinOwnerId(), event.getReactorId(), event.getCheckinId());
+
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
+            log.info("Chặn spam thông báo Checkin Reaction: {}", throttleKey);
+            return;
+        }
+
+        // Lưu Cache 10 giây. Nếu user spam click liên tục trong 10s sẽ bị bỏ qua
+        redisTemplate.opsForValue().set(throttleKey, "1", 10, TimeUnit.SECONDS);
+
+        User reactor = userRepository.findById(event.getReactorId()).orElse(null);
+        if (reactor == null) {
+            return;
+        }
+
+        notificationService.sendAndSaveNotificationFull(
+                event.getCheckinOwnerId(),
+                reactor.getId(),
+                NotificationType.REACTION,
+                "Tương tác mới",
+                reactor.getFullname() + " đã thả cảm xúc vào bài viết của bạn",
+                event.getCheckinId(),
+                reactor.getAvatarUrl(),
+                "noti.reaction.checkin",
+                "[\"" + reactor.getFullname() + "\"]",
+                null
+        );
+    }
+
+    // --- 5. XỬ LÝ TƯƠNG TÁC MOOD (CÓ CHỐNG SPAM) ---
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleMoodReacted(MoodReactedEvent event) {
+        if (event.getMoodOwnerId().equals(event.getReactorId())) {
+            return;
+        }
+
+        // BỔ SUNG SPRINT 2 (TASK-503): Chống Spam bằng Redis Throttle
+        // Key: noti_throttle:{người_nhận}:{người_gửi}:REACTION_MOOD:{id_mood}
+        String throttleKey = String.format("noti_throttle:%s:%s:REACTION_MOOD:%s",
+                event.getMoodOwnerId(), event.getReactorId(), event.getMoodId());
+
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
+            log.info("Chặn spam thông báo Mood Reaction: {}", throttleKey);
+            return;
+        }
+
+        redisTemplate.opsForValue().set(throttleKey, "1", 10, TimeUnit.SECONDS);
+
+        User reactor = userRepository.findById(event.getReactorId()).orElse(null);
+        Mood mood = moodRepository.findById(event.getMoodId()).orElse(null);
+        if (reactor == null || mood == null) {
+            return;
+        }
+
+        notificationService.sendAndSaveNotificationFull(
+                event.getMoodOwnerId(),
+                reactor.getId(),
+                NotificationType.REACTION,
+                "Tương tác mới",
+                reactor.getFullname() + " đã thả cảm xúc vào trạng thái của bạn",
+                event.getMoodId(),
+                reactor.getAvatarUrl(),
+                "noti.reaction.mood",
+                "[\"" + reactor.getFullname() + "\",\"" + mood.getBox().getName() + "\"]",
+                null
+        );
+    }
+
+    // --- [BỔ SUNG SPRINT 2]: XỬ LÝ LỜI MỜI KẾT BẠN (TASK-401) ---
+//    @Async
+//    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+//    public void handleFriendRequest(FriendRequestEvent event) {
+//        User sender = userRepository.findById(event.getSenderId()).orElse(null);
+//        User recipient = userRepository.findById(event.getRecipientId()).orElse(null);
+//
+//        if (sender == null || recipient == null) return;
+//
+//        notificationService.sendAndSaveNotificationFull(
+//                recipient.getId(),
+//                sender.getId(),
+//                NotificationType.FRIEND_REQUEST,
+//                "Lời mời kết bạn",
+//                sender.getFullname() + " đã gửi cho bạn lời mời kết bạn",
+//                event.getRequestId(),
+//                sender.getAvatarUrl(),
+//                "noti.friend.request",
+//                "[\"" + sender.getFullname() + "\"]",
+//                "PENDING" // Kích hoạt UI hiển thị nút Chấp nhận/Từ chối
+//        );
+//    }
+
+    // --- 6. XỬ LÝ NHẮC TÊN TRONG BÌNH LUẬN ---
+    private void notifyMentions(CommentPostedEvent event, Checkin checkin, User commenter) {
+        Matcher matcher = MENTION_PATTERN.matcher(event.getContent());
+        Set<String> handles = new HashSet<>();
+
+        while (matcher.find()) {
+            handles.add(matcher.group(1));
+        }
+
+        for (String handle : handles) {
+            userRepository.findByHandle(handle).ifPresent(mentionedUser -> {
+                if (mentionedUser.getId().equals(commenter.getId())) {
+                    return;
+                }
+
+                notificationService.sendAndSaveNotificationFull(
+                        mentionedUser.getId(),
+                        commenter.getId(),
+                        NotificationType.MOOD_MENTIONED,
+                        "Bạn được nhắc đến",
+                        commenter.getFullname() + " đã nhắc bạn trong một bình luận",
+                        checkin.getId(),
+                        commenter.getAvatarUrl(),
+                        "noti.comment.mentioned",
+                        "[\"" + commenter.getFullname() + "\"]",
+                        null
+                );
+            });
+        }
     }
 }

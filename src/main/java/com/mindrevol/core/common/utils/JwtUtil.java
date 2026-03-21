@@ -83,8 +83,12 @@ public class JwtUtil {
         try {
             Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            // Expired token is expected in normal client refresh flow; keep it out of error logs.
+            log.debug("Expired JWT token");
+            return false;
         } catch (JwtException | IllegalArgumentException e) {
-            log.error("Invalid JWT token: {}", e.getMessage());
+            log.warn("Invalid JWT token: {}", e.getMessage());
             return false;
         }
     }

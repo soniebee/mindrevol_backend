@@ -14,7 +14,6 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 @SuperBuilder
 public class Notification extends BaseEntity {
-    // [UUID] ID chính kế thừa từ BaseEntity (String)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
@@ -34,7 +33,6 @@ public class Notification extends BaseEntity {
     @Column(nullable = false)
     private String message;
 
-    // [UUID] Luôn lưu ID tham chiếu dưới dạng String
     private String referenceId;
 
     private String imageUrl;
@@ -42,4 +40,25 @@ public class Notification extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean isRead = false;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean isSeen = false;
+
+    @Column(nullable = false, columnDefinition = "integer default 1")
+    @Builder.Default
+    private int actorsCount = 1;
+
+    // --- BỔ SUNG SPRINT 2 ---
+
+    // EPIC 3: Hỗ trợ đa ngôn ngữ (i18n)
+    @Column(name = "message_key")
+    private String messageKey;
+
+    @Column(name = "message_args", columnDefinition = "TEXT")
+    private String messageArgs; // Lưu JSON array, VD: '["Khang", "Đà Lạt"]'
+
+    // EPIC 1: Trạng thái hành động (Chấp nhận/Từ chối)
+    @Column(name = "action_status")
+    private String actionStatus; // PENDING, ACCEPTED, REJECTED
 }

@@ -245,8 +245,21 @@ public class UserServiceImpl implements UserService {
         if (request.getPushNewComment() != null) settings.setPushNewComment(request.getPushNewComment());
         if (request.getPushJourneyInvite() != null) settings.setPushJourneyInvite(request.getPushJourneyInvite());
         if (request.getPushReaction() != null) settings.setPushReaction(request.getPushReaction());
+        if (request.getPushEnabled() != null) settings.setPushEnabled(request.getPushEnabled());
+        if (request.getInAppEnabled() != null) settings.setInAppEnabled(request.getInAppEnabled());
+        if (request.getEmailEnabled() != null) settings.setEmailEnabled(request.getEmailEnabled());
+        // BỔ SUNG SPRINT 2: Cập nhật DND
+        if (request.getDndEnabled() != null) settings.setDndEnabled(request.getDndEnabled());
+        if (request.getDndStartHour() != null) settings.setDndStartHour(request.getDndStartHour());
+        if (request.getDndEndHour() != null) settings.setDndEndHour(request.getDndEndHour());
 
         return userSettingsRepository.save(settings);
+    }
+
+    private void validateHour(Integer hour, String fieldName) {
+        if (hour < 0 || hour > 23) {
+            throw new BadRequestException(fieldName + " must be between 0 and 23");
+        }
     }
 
     @Override

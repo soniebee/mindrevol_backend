@@ -10,4 +10,12 @@ public class UpdateNotificationSettingsRequest {
     private Boolean pushNewComment;
     private Boolean pushJourneyInvite;
     private Boolean pushReaction;
+    private Boolean pushEnabled;
+    private Boolean inAppEnabled;
+    private Boolean emailEnabled;
+
+    // BỔ SUNG SPRINT 2 (TASK-202): Chế độ DND
+    private Boolean dndEnabled;
+    private Integer dndStartHour;
+    private Integer dndEndHour;
 }

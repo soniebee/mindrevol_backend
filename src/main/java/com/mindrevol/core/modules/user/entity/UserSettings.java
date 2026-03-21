@@ -42,4 +42,26 @@ public class UserSettings extends BaseEntity {
     @Column(name = "push_reaction")
     @Builder.Default
     private boolean pushReaction = true;
+
+    @Column(name = "push_enabled", nullable = false)
+    @Builder.Default
+    private boolean pushEnabled = true;
+
+    @Column(name = "in_app_enabled", nullable = false)
+    @Builder.Default
+    private boolean inAppEnabled = true;
+
+    @Column(name = "email_enabled", nullable = false)
+    @Builder.Default
+    private boolean emailEnabled = true;
+
+    // BỔ SUNG SPRINT 2 (TASK-202): Chế độ Không làm phiền (DND)
+    @Column(name = "dnd_enabled", columnDefinition = "boolean default false")
+    private Boolean dndEnabled = false;
+
+    @Column(name = "dnd_start_hour", columnDefinition = "int default 22")
+    private Integer dndStartHour = 22;
+
+    @Column(name = "dnd_end_hour", columnDefinition = "int default 6")
+    private Integer dndEndHour = 6;
 }
