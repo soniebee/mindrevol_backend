@@ -5,14 +5,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 
 @Repository
-public interface BoxInvitationRepository extends JpaRepository<BoxInvitation, String> {
+public interface BoxInvitationRepository extends JpaRepository<BoxInvitation, Long> {
 
-    // Lấy danh sách lời mời đang chờ của một User
-    List<BoxInvitation> findByRecipientIdAndStatus(String recipientId, String status);
+    // 🔥 Đã đổi RecipientId thành InviteeId
+    List<BoxInvitation> findByInviteeIdAndStatus(String inviteeId, String status);
 
-    // Kiểm tra xem đã gửi lời mời cho người này chưa để tránh spam
-    boolean existsByBoxIdAndRecipientIdAndStatus(String boxId, String recipientId, String status);
+    // 🔥 Đã đổi RecipientId thành InviteeId (Dùng cho hàm inviteMember ở Service)
+    boolean existsByBoxIdAndInviteeIdAndStatus(String boxId, String inviteeId, String status);
+
+    // Nếu trong file của bạn có hàm nào chứa chữ Sender thì đổi thành Inviter luôn nhé!
 }

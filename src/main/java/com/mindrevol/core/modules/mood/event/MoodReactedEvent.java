@@ -2,17 +2,17 @@ package com.mindrevol.core.modules.mood.event;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Data
+@Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class MoodReactedEvent {
-    private String moodId;
-    private String boxId;
-    private String reactorId;    // Người vừa bấm thả tim
-    private String moodOwnerId;  // Chủ nhân của bong bóng (Người sẽ nhận được thông báo)
-    private String emoji;        // Thả biểu tượng gì
+    private String moodId;          // ID của trạng thái đang bị thả tim
+    private String boxId;           // Box chứa trạng thái này
+    private String reactorId;       // Người vừa bấm nút thả tim (Người đi bão)
+    private String moodOwnerId;     // Chủ nhân của trạng thái (Người hứng bão)
+    private String emoji;           // Icon vừa thả (VD: ❤️, 🔥)
 }
