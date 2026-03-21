@@ -41,24 +41,13 @@ public class Notification extends BaseEntity {
     @Builder.Default
     private boolean isRead = false;
 
-    @Column(nullable = false, columnDefinition = "boolean default false")
+    // [TASK-102] Tách biệt trạng thái Seen (Đã thấy notification trên chuông)
+    @Column(nullable = false)
     @Builder.Default
     private boolean isSeen = false;
 
-    @Column(nullable = false, columnDefinition = "integer default 1")
+    // [TASK-101] Phục vụ việc gom nhóm (Ví dụ: A và 2 người khác...)
+    @Column(nullable = false)
     @Builder.Default
     private int actorsCount = 1;
-
-    // --- BỔ SUNG SPRINT 2 ---
-
-    // EPIC 3: Hỗ trợ đa ngôn ngữ (i18n)
-    @Column(name = "message_key")
-    private String messageKey;
-
-    @Column(name = "message_args", columnDefinition = "TEXT")
-    private String messageArgs; // Lưu JSON array, VD: '["Khang", "Đà Lạt"]'
-
-    // EPIC 1: Trạng thái hành động (Chấp nhận/Từ chối)
-    @Column(name = "action_status")
-    private String actionStatus; // PENDING, ACCEPTED, REJECTED
 }

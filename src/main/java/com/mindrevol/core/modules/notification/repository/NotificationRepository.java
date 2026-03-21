@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -20,7 +19,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
 
     // [TASK-102] Đếm số thông báo CHƯA XEM (để hiển thị badge đỏ ở icon chuông)
     long countByRecipientIdAndIsSeenFalse(String userId);
-    long countByRecipientIdAndIsReadFalse(String userId);
 
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true, n.isSeen = true WHERE n.recipient.id = :userId")
@@ -35,26 +33,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     Optional<Notification> findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(
             String recipientId, NotificationType type, String referenceId);
 
-    Optional<Notification> findFirstByRecipientIdAndTypeAndReferenceIdOrderByCreatedAtDesc(
-            String recipientId, NotificationType type, String referenceId);
-
-    @Modifying
-    @Query("UPDATE Notification n SET n.actionStatus = :actionStatus WHERE n.recipient.id = :recipientId AND n.type = :type AND n.referenceId = :referenceId")
-    int updateActionStatusByRecipientAndTypeAndReferenceId(
-            @Param("recipientId") String recipientId,
-            @Param("type") NotificationType type,
-            @Param("referenceId") String referenceId,
-            @Param("actionStatus") String actionStatus);
-
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.recipient.id = :userId")
     void deleteAllByRecipientId(@Param("userId") String userId);
 
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.isRead = true AND n.createdAt < :cutoffDate")
-    int deleteOldReadNotifications(@Param("cutoffDate") java.time.LocalDateTime cutoffDate);
-    @Modifying
-    @Query("DELETE FROM Notification n WHERE n.isRead = false AND n.createdAt < :date")
-    int deleteOldUnreadNotifications(@Param("date") LocalDateTime date);
-
+    void deleteOldReadNotifications(@Param("cutoffDate") java.time.LocalDateTime cutoffDate);
 }
