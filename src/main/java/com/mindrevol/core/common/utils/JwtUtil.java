@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 @Component
 public class JwtUtil {
 
+    private static final String SESSION_ID_CLAIM = "sid";
+
     @Value("${app.jwt.secret}")
     private String jwtSecret;
 
@@ -29,28 +31,34 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(User user, String sessionId) {
         String roles = user.getRoles().stream()
                 .map(role -> "ROLE_" + role.getName())
                 .collect(Collectors.joining(","));
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(user.getEmail())
                 .claim("roles", roles)
                 .claim("userId", user.getId())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                .compact();
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512);
+        if (sessionId != null && !sessionId.isBlank()) {
+            builder.claim(SESSION_ID_CLAIM, sessionId);
+        }
+        return builder.compact();
     }
 
-    public String generateRefreshToken(User user) {
-        return Jwts.builder()
+    public String generateRefreshToken(User user, String sessionId) {
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(user.getEmail())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + refreshTokenExpirationMs))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                .compact();
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512);
+        if (sessionId != null && !sessionId.isBlank()) {
+            builder.claim(SESSION_ID_CLAIM, sessionId);
+        }
+        return builder.compact();
     }
 
     public String getEmailFromToken(String token) {
@@ -77,6 +85,33 @@ public class JwtUtil {
 
     public String extractUsername(String token) {
         return getEmailFromToken(token);
+    }
+
+    public String getSessionId(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.get(SESSION_ID_CLAIM, String.class);
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    public Long getIssuedAtMillis(String token) {
+        try {
+            Date issuedAt = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody()
+                    .getIssuedAt();
+            return issuedAt != null ? issuedAt.getTime() : null;
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public boolean validateToken(String token) {

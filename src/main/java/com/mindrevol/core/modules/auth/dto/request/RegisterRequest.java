@@ -11,31 +11,31 @@ import java.time.LocalDate;
 @Setter
 public class RegisterRequest {
 
-    @NotBlank(message = "Họ tên không được để trống")
+    @NotBlank(message = "Full name must not be blank")
     private String fullname;
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Mật khẩu không được để trống")
-    @Size(min = 8, message = "Mật khẩu phải có ít nhất 8 ký tự")
+    @NotBlank(message = "Password must not be blank")
+    @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
 
-    @NotBlank(message = "Handle (Username) không được để trống")
-    @Size(min = 3, max = 30, message = "Handle phải từ 3 đến 30 ký tự")
-    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle chỉ chứa chữ cái, số, dấu chấm và gạch dưới")
+    @NotBlank(message = "Handle (username) must not be blank")
+    @Size(min = 3, max = 30, message = "Handle must be between 3 and 30 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle can only contain letters, numbers, dots, and underscores")
     private String handle;
 
     // --- MỚI: Thêm ngày sinh để kiểm tra độ tuổi (Luật COPPA/GDPR) ---
-    @NotNull(message = "Ngày sinh là bắt buộc")
-    @Past(message = "Ngày sinh phải trong quá khứ")
+    @NotNull(message = "Date of birth is required")
+    @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
 
     // --- MỚI: Bắt buộc đồng ý điều khoản ---
-    @AssertTrue(message = "Bạn phải đồng ý với Điều khoản sử dụng và Chính sách quyền riêng tư")
+    @AssertTrue(message = "You must agree to the Terms of Use and Privacy Policy")
     private boolean agreedToTerms;
     
-    @NotNull(message = "Giới tính là bắt buộc")
+    @NotNull(message = "Gender is required")
     private Gender gender;
 }

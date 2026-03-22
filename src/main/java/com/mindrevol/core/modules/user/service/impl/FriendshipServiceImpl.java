@@ -33,16 +33,16 @@ public class FriendshipServiceImpl implements FriendshipService {
     @Transactional
     public FriendshipResponse sendFriendRequest(String requesterId, String targetUserId) { 
         if (requesterId.equals(targetUserId)) {
-            throw new BadRequestException("Không thể tự kết bạn với chính mình");
+            throw new BadRequestException("You cannot send a friend request to yourself");
         }
 
         User requester = userRepository.findById(requesterId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người gửi không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Requester does not exist"));
         User addressee = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người nhận không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Addressee does not exist"));
 
         if (friendshipRepository.existsByUsers(requesterId, targetUserId)) {
-            throw new BadRequestException("Đã tồn tại mối quan hệ hoặc lời mời giữa hai người");
+            throw new BadRequestException("A friendship or pending request already exists between these users");
         }
 
         Friendship friendship = Friendship.builder()
@@ -57,8 +57,8 @@ public class FriendshipServiceImpl implements FriendshipService {
                 addressee.getId(),
                 requester.getId(),
                 NotificationType.FRIEND_REQUEST,
-                "Lời mời kết bạn mới 👋",
-                requester.getFullname() + " muốn kết bạn với bạn.",
+                "New friend request 👋",
+                requester.getFullname() + " sent you a friend request.",
                 saved.getId(), 
                 requester.getAvatarUrl()
         );
@@ -70,14 +70,14 @@ public class FriendshipServiceImpl implements FriendshipService {
     @Transactional
     public FriendshipResponse acceptFriendRequest(String userId, String friendshipId) { 
         Friendship friendship = friendshipRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
 
         if (!friendship.getAddressee().getId().equals(userId)) {
-            throw new BadRequestException("Bạn không có quyền chấp nhận lời mời này");
+            throw new BadRequestException("You do not have permission to accept this request");
         }
 
         if (friendship.getStatus() != FriendshipStatus.PENDING) {
-            throw new BadRequestException("Lời mời không còn hiệu lực");
+            throw new BadRequestException("This friend request is no longer valid");
         }
 
         friendship.setStatus(FriendshipStatus.ACCEPTED);
@@ -90,8 +90,8 @@ public class FriendshipServiceImpl implements FriendshipService {
                 requester.getId(),
                 accepter.getId(),
                 NotificationType.FRIEND_ACCEPTED,
-                "Đã trở thành bạn bè 🤝",
-                accepter.getFullname() + " đã chấp nhận lời mời kết bạn.",
+                "You are now friends 🤝",
+                accepter.getFullname() + " accepted your friend request.",
                 accepter.getId(),
                 accepter.getAvatarUrl()
         );
@@ -103,10 +103,10 @@ public class FriendshipServiceImpl implements FriendshipService {
     @Transactional
     public void declineFriendRequest(String userId, String friendshipId) { 
         Friendship friendship = friendshipRepository.findById(friendshipId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Friend request not found"));
 
         if (!friendship.getAddressee().getId().equals(userId)) {
-            throw new BadRequestException("Bạn không có quyền từ chối lời mời này");
+            throw new BadRequestException("You do not have permission to decline this request");
         }
         friendshipRepository.delete(friendship);
     }
@@ -115,7 +115,7 @@ public class FriendshipServiceImpl implements FriendshipService {
     @Transactional
     public void removeFriendship(String userId, String targetUserId) { 
         Friendship friendship = friendshipRepository.findByUsers(userId, targetUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy mối quan hệ bạn bè"));
+                .orElseThrow(() -> new ResourceNotFoundException("Friendship not found"));
         friendshipRepository.delete(friendship);
     }
 

@@ -34,7 +34,7 @@ public class TikTokLoginStrategy implements SocialLoginStrategy {
     @Override
     public SocialProviderData verifyAndGetData(Object data) {
         if (!(data instanceof TikTokLoginRequest)) {
-            throw new BadRequestException("Dữ liệu đầu vào không hợp lệ cho TikTok");
+            throw new BadRequestException("Invalid input data for TikTok");
         }
         TikTokLoginRequest request = (TikTokLoginRequest) data;
 
@@ -56,7 +56,7 @@ public class TikTokLoginStrategy implements SocialLoginStrategy {
             Map<String, Object> tokenResponse = restTemplate.postForObject(tokenUrl, entity, Map.class);
 
             if (tokenResponse == null || !tokenResponse.containsKey("access_token")) {
-                throw new BadRequestException("Không thể lấy Access Token từ TikTok.");
+                throw new BadRequestException("Unable to get access token from TikTok.");
             }
 
             String accessToken = (String) tokenResponse.get("access_token");
@@ -94,7 +94,7 @@ public class TikTokLoginStrategy implements SocialLoginStrategy {
 
         } catch (Exception e) {
             log.error("TikTok Login Error", e);
-            throw new BadRequestException("Lỗi xác thực TikTok: " + e.getMessage());
+            throw new BadRequestException("TikTok authentication failed: " + e.getMessage());
         }
     }
 }

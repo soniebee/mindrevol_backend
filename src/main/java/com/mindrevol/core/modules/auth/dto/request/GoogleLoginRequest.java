@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class GoogleLoginRequest {
-    @NotBlank(message = "Google Access Token không được để trống")
+    @NotBlank(message = "Google Access Token must not be blank")
     private String accessToken; // Đã đổi tên từ idToken -> accessToken
 }

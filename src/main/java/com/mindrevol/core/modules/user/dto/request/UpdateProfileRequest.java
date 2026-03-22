@@ -12,17 +12,17 @@ import java.time.LocalDate;
 @Setter
 public class UpdateProfileRequest {
 
-    @Size(min = 2, max = 100, message = "Họ tên phải từ 2 đến 100 ký tự")
+    @Size(min = 2, max = 100, message = "Full name must be between 2 and 100 characters")
     private String fullname;
 
-    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle chỉ được chứa chữ cái, số, dấu chấm và gạch dưới")
-    @Size(min = 3, max = 30, message = "Handle phải từ 3 đến 30 ký tự")
+    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle can only contain letters, numbers, dots, and underscores")
+    @Size(min = 3, max = 30, message = "Handle must be between 3 and 30 characters")
     private String handle;
 
-    @Size(max = 150, message = "Tiểu sử không được quá 150 ký tự")
+    @Size(max = 150, message = "Bio must be at most 150 characters")
     private String bio;
 
-    @Size(max = 255, message = "Website không hợp lệ")
+    @Size(max = 255, message = "Invalid website")
     private String website;
 
     private String avatarUrl;
@@ -30,7 +30,7 @@ public class UpdateProfileRequest {
     private String timezone;
 
     // --- Bổ sung ---
-    @Past(message = "Ngày sinh không hợp lệ")
+    @Past(message = "Invalid date of birth")
     private LocalDate dateOfBirth;
 
     private Gender gender;

@@ -9,10 +9,10 @@ import lombok.Setter;
 @Setter
 public class VerifyRegisterOtpRequest {
     
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Mã OTP không được để trống")
+    @NotBlank(message = "OTP code must not be blank")
     private String otpCode;
 }

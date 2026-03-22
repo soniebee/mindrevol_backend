@@ -7,9 +7,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class TikTokLoginRequest {
-    @NotBlank(message = "Auth Code không được để trống")
+    @NotBlank(message = "Auth code must not be blank")
     private String code;
 
-    @NotBlank(message = "Code Verifier không được để trống")
+    @NotBlank(message = "Code verifier must not be blank")
     private String codeVerifier; // <--- THÊM
 }

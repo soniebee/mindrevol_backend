@@ -15,13 +15,13 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ChangePasswordDto {
 
-    @NotBlank(message = "Mật khẩu cũ không được để trống")
+    @NotBlank(message = "Old password must not be blank")
     private String oldPassword;
 
-    @NotBlank(message = "Mật khẩu mới không được để trống")
+    @NotBlank(message = "New password must not be blank")
     private String newPassword;
 
-    @NotBlank(message = "Xác nhận mật khẩu không được để trống")
+    @NotBlank(message = "Password confirmation must not be blank")
     private String confirmPassword;
 }
 

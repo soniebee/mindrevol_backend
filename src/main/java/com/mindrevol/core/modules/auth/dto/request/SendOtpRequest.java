@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class SendOtpRequest {
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
     private String email;
 }

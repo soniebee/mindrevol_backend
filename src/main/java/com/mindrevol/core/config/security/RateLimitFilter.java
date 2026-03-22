@@ -75,7 +75,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
             ApiResponse<Void> errorResponse = ApiResponse.error(
                     429, 
-                    "Thao tác quá nhanh. Vui lòng thử lại sau " + waitForRefill + " giây.",
+                    "Too many requests. Please try again in " + waitForRefill + " seconds.",
                     "RATE_LIMIT_EXCEEDED"
             );
             

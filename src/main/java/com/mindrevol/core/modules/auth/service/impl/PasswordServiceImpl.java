@@ -65,7 +65,7 @@ public class PasswordServiceImpl implements PasswordService {
     public void changePassword(ChangePasswordRequest request, String userEmail) {
         User user = userRepository.findByEmail(userEmail).orElseThrow();
         if (user.getPassword() != null && !passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            throw new BadRequestException("Mật khẩu cũ không đúng.");
+            throw new BadRequestException("Old password is incorrect.");
         }
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
@@ -89,7 +89,7 @@ public class PasswordServiceImpl implements PasswordService {
     @Transactional
     public void updatePasswordWithOtp(String email, String otpCode, String newPassword) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         // --- BẮT ĐẦU LOGIC REDIS ---
         String otpKey = OTP_PREFIX + email;
@@ -99,7 +99,7 @@ public class PasswordServiceImpl implements PasswordService {
         String cachedOtp = (String) redisTemplate.opsForValue().get(otpKey);
         
         if (cachedOtp == null) {
-            throw new BadRequestException("Mã OTP đã hết hạn hoặc chưa được gửi.");
+            throw new BadRequestException("OTP code has expired or has not been sent.");
         }
 
         // 2. Kiểm tra Retry Count (Số lần nhập sai)
@@ -109,7 +109,7 @@ public class PasswordServiceImpl implements PasswordService {
         if (retryCount >= 5) {
             redisTemplate.delete(otpKey); // Xóa OTP
             redisTemplate.delete(retryKey);
-            throw new BadRequestException("Bạn nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
+            throw new BadRequestException("You entered an incorrect OTP more than 5 times. Please request a new code.");
         }
 
         // 3. So sánh mã OTP
@@ -117,7 +117,7 @@ public class PasswordServiceImpl implements PasswordService {
             // Nếu sai -> Tăng biến đếm
             redisTemplate.opsForValue().increment(retryKey);
             redisTemplate.expire(retryKey, 5, TimeUnit.MINUTES); // Gia hạn thời gian sống cho key retry
-            throw new BadRequestException("Mã OTP không chính xác. (Sai " + (retryCount + 1) + "/5 lần)");
+            throw new BadRequestException("Incorrect OTP code. (Attempt " + (retryCount + 1) + "/5)");
         }
 
         // 4. Nếu đúng -> Dọn dẹp Redis

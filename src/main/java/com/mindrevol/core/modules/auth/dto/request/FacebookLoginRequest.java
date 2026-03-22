@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class FacebookLoginRequest {
-    @NotBlank(message = "Access Token không được để trống")
+    @NotBlank(message = "Access Token must not be blank")
     private String accessToken;
 }

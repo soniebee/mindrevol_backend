@@ -10,8 +10,8 @@ import lombok.Setter;
 @Setter
 public class CheckHandleRequest {
     
-    @NotBlank(message = "Handle không được để trống")
-    @Size(min = 3, max = 30, message = "Handle phải từ 3 đến 30 ký tự")
-    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle chỉ chứa chữ cái, số, dấu chấm và gạch dưới")
+    @NotBlank(message = "Handle must not be blank")
+    @Size(min = 3, max = 30, message = "Handle must be between 3 and 30 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9._]+$", message = "Handle can only contain letters, numbers, dots, and underscores")
     private String handle;
 }

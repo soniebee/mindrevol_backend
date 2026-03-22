@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 public class CreatePasswordRequest {
-    @NotBlank(message = "Mật khẩu không được để trống")
-    @Size(min = 8, message = "Mật khẩu phải có ít nhất 8 ký tự")
+    @NotBlank(message = "Password must not be blank")
+    @Size(min = 8, message = "Password must be at least 8 characters")
     private String newPassword;
 }

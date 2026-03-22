@@ -6,10 +6,10 @@ import lombok.Data;
 
 @Data
 public class UpdatePasswordOtpRequest {
-    @NotBlank(message = "OTP không được để trống")
+    @NotBlank(message = "OTP must not be blank")
     private String otp;
 
-    @NotBlank(message = "Mật khẩu mới không được để trống")
-    @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
+    @NotBlank(message = "New password must not be blank")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String newPassword;
 }

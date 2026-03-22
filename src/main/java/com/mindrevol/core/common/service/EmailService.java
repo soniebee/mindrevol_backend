@@ -1,5 +1,5 @@
 package com.mindrevol.core.common.service;
-
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
@@ -7,20 +7,16 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import jakarta.mail.internet.MimeMessage;
-
 /**
- * Service gửi email
+ * Service for sending email notifications.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
-
     private final JavaMailSender mailSender;
-
     /**
-     * Gửi email đơn giản (text)
+     * Send a plain text email.
      */
     @Async
     public void sendSimpleEmail(String to, String subject, String text) {
@@ -34,39 +30,34 @@ public class EmailService {
             log.info("Email sent successfully to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send email to: {}", to, e);
-            throw new RuntimeException("Không thể gửi email: " + e.getMessage());
+            throw new RuntimeException("Unable to send email: " + e.getMessage());
         }
     }
-
     /**
-     * Gửi email HTML
+     * Send an HTML email.
      */
     @Async
     public void sendHtmlEmail(String to, String subject, String htmlContent) {
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-
             helper.setFrom("noreply@mindrevol.com");
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(htmlContent, true); // true = HTML
-
+            helper.setText(htmlContent, true);
             mailSender.send(mimeMessage);
             log.info("HTML email sent successfully to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send HTML email to: {}", to, e);
-            throw new RuntimeException("Không thể gửi email: " + e.getMessage());
+            throw new RuntimeException("Unable to send email: " + e.getMessage());
         }
     }
-
     /**
-     * Gửi mã OTP qua email
+     * Send OTP code email.
      */
     @Async
     public void sendOtpEmail(String to, String otpCode, String fullname) {
-        String subject = "Mã xác thực OTP - Mindrevol";
-
+        String subject = "Your OTP Verification Code - Mindrevol";
         String htmlContent = String.format("""
             <!DOCTYPE html>
             <html>
@@ -85,26 +76,24 @@ public class EmailService {
             <body>
                 <div class="container">
                     <div class="header">
-                        <h1>🚀 Mindrevol</h1>
-                        <p>Xác thực tài khoản của bạn</p>
+                        <h1>Mindrevol</h1>
+                        <p>Verify your account</p>
                     </div>
                     <div class="content">
-                        <p>Xin chào <strong>%s</strong>,</p>
-                        <p>Cảm ơn bạn đã đăng ký tài khoản tại Mindrevol! Để hoàn tất quá trình đăng ký, vui lòng nhập mã OTP bên dưới:</p>
+                        <p>Hello <strong>%s</strong>,</p>
+                        <p>Thank you for signing up with Mindrevol! To complete your registration, please enter the OTP code below:</p>
                         <div class="otp-code">%s</div>
-                        <p class="warning">⚠️ Mã OTP này có hiệu lực trong <strong>15 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
-                        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
+                        <p class="warning">This OTP is valid for <strong>15 minutes</strong>. Please do not share this code with anyone.</p>
+                        <p>If you did not request this, please ignore this email.</p>
                     </div>
                     <div class="footer">
-                        <p>© 2026 Mindrevol. All rights reserved.</p>
-                        <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+                        <p>2026 Mindrevol. All rights reserved.</p>
+                        <p>This is an automated email. Please do not reply.</p>
                     </div>
                 </div>
             </body>
             </html>
-            """, fullname != null ? fullname : "bạn", otpCode);
-
+            """, fullname != null ? fullname : "there", otpCode);
         sendHtmlEmail(to, subject, htmlContent);
     }
 }
-

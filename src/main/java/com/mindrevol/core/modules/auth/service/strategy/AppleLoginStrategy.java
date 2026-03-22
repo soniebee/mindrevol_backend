@@ -35,7 +35,7 @@ public class AppleLoginStrategy implements SocialLoginStrategy {
             String email = claims.get("email", String.class);
             String sub = claims.getSubject();
 
-            if (email == null) throw new BadRequestException("Apple không trả về email.");
+            if (email == null) throw new BadRequestException("Apple did not return an email.");
 
             String name = "Apple User";
             if (request.getUser() != null) {

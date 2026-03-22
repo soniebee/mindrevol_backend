@@ -101,8 +101,6 @@ dependencies {
     
     implementation 'org.springframework:spring-aspects'
     
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
-    
     implementation 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20240325.1'
     
     implementation 'com.bucket4j:bucket4j-core:8.9.0'
@@ -124,12 +122,17 @@ dependencies {
     implementation 'com.github.f4b6a3:tsid-creator:5.2.6'
     
     implementation 'com.github.f4b6a3:uuid-creator:5.3.7'
+    implementation 'com.github.ua-parser:uap-java:1.6.1'
     
     implementation 'com.drewnoakes:metadata-extractor:2.18.0'
     
     implementation 'com.github.loki4j:loki-logback-appender:1.5.1'
     
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+    
+    // QR Code Generation for 2FA
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.google.zxing:javase:3.5.3'
 }
 
 tasks.named('test') {

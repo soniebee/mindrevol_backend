@@ -80,14 +80,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfileResponse getPublicProfile(String handle, String currentUserEmail) {
         User targetUser = userRepository.findByHandle(handle)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng @" + handle + " không tồn tại."));
+                .orElseThrow(() -> new ResourceNotFoundException("User @" + handle + " does not exist."));
         return getPublicProfileCommon(targetUser, currentUserEmail);
     }
 
     @Override
     public UserProfileResponse getPublicProfileById(String userId, String currentUserEmail) {
         User targetUser = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại."));
+                .orElseThrow(() -> new ResourceNotFoundException("User does not exist."));
         return getPublicProfileCommon(targetUser, currentUserEmail);
     }
 
@@ -110,7 +110,7 @@ public class UserServiceImpl implements UserService {
                 user.setAvatarUrl(uploadResult.getUrl());
             } catch (Exception e) {
                 log.error("Failed to upload avatar", e);
-                throw new BadRequestException("Lỗi khi tải lên ảnh đại diện: " + e.getMessage());
+                throw new BadRequestException("Failed to upload avatar: " + e.getMessage());
             }
         }
 
@@ -119,7 +119,7 @@ public class UserServiceImpl implements UserService {
         
         if (request.getHandle() != null && !request.getHandle().equals(user.getHandle())) {
             if (userRepository.existsByHandle(request.getHandle())) 
-                throw new BadRequestException("Handle @" + request.getHandle() + " đã được sử dụng.");
+                throw new BadRequestException("Handle @" + request.getHandle() + " is already in use.");
         }
         
         if (request.getTimezone() != null && !request.getTimezone().isEmpty()) {
@@ -279,11 +279,11 @@ public class UserServiceImpl implements UserService {
         long socialCount = socialAccountRepository.countByUserId(userId);
 
         if (!hasPassword && socialCount <= 1) {
-            throw new BadRequestException("Bạn không thể hủy liên kết phương thức đăng nhập duy nhất. Vui lòng tạo mật khẩu trước.");
+            throw new BadRequestException("You cannot unlink your only login method. Please create a password first.");
         }
 
         SocialAccount account = socialAccountRepository.findByUserIdAndProvider(userId, provider)
-                .orElseThrow(() -> new ResourceNotFoundException("Chưa liên kết với " + provider));
+                .orElseThrow(() -> new ResourceNotFoundException("No linked account for " + provider));
         
         socialAccountRepository.delete(account);
     }

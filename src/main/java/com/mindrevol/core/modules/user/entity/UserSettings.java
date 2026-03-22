@@ -5,6 +5,8 @@ import com.mindrevol.core.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "user_settings")
 @Getter
@@ -42,4 +44,20 @@ public class UserSettings extends BaseEntity {
     @Column(name = "push_reaction")
     @Builder.Default
     private boolean pushReaction = true;
+
+    @Column(name = "two_factor_enabled")
+    @Builder.Default
+    private boolean twoFactorEnabled = false;
+
+    @Column(name = "two_factor_secret", length = 128)
+    private String twoFactorSecret;
+
+    @Column(name = "two_factor_temp_secret", length = 128)
+    private String twoFactorTempSecret;
+
+    @Column(name = "two_factor_backup_codes", columnDefinition = "TEXT")
+    private String twoFactorBackupCodes;
+
+    @Column(name = "two_factor_enabled_at")
+    private LocalDateTime twoFactorEnabledAt;
 }

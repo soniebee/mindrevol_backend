@@ -8,6 +8,6 @@ import lombok.Setter;
 @Setter
 public class LogoutRequest {
 
-    @NotBlank(message = "Refresh token không được để trống")
+    @NotBlank(message = "Refresh token must not be blank")
     private String refreshToken;
 }

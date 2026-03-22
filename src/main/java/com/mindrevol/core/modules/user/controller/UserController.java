@@ -88,7 +88,7 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deleteMyAccount() {
         String currentUserId = SecurityUtils.getCurrentUserId();
         userService.deleteMyAccount(currentUserId);
-        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã được xóa vĩnh viễn"));
+        return ResponseEntity.ok(ApiResponse.success("Account has been permanently deleted"));
     }
     
     @GetMapping("/me/export")
@@ -108,7 +108,7 @@ public class UserController {
     }
     
     @GetMapping("/{userId}/recaps")
-    @Operation(summary = "Lấy danh sách các hành trình đã hoàn thành (Album kỷ niệm)")
+    @Operation(summary = "Get completed journeys (recap album)")
     public ResponseEntity<ApiResponse<List<JourneyResponse>>> getUserRecaps(@PathVariable String userId) {
         List<JourneyResponse> recaps = userService.getUserRecaps(userId);
         return ResponseEntity.ok(ApiResponse.success(recaps));
@@ -126,6 +126,6 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> unlinkSocialAccount(@PathVariable String provider) {
         String userId = SecurityUtils.getCurrentUserId();
         userService.unlinkSocialAccount(userId, provider.toUpperCase());
-        return ResponseEntity.ok(ApiResponse.success("Đã hủy liên kết tài khoản " + provider));
+        return ResponseEntity.ok(ApiResponse.success("Unlinked account " + provider));
     }
 }

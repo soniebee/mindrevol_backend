@@ -14,4 +14,8 @@ public class JwtResponse {
     private String refreshToken;
     @Builder.Default
     private String tokenType = "Bearer";
+    @Builder.Default
+    private boolean requiresTwoFactor = false;
+    private String challengeId;
+    private String message;
 }

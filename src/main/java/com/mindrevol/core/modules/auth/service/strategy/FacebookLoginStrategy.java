@@ -34,7 +34,7 @@ public class FacebookLoginStrategy implements SocialLoginStrategy {
         try {
             Map<String, Object> fbProfile = restTemplate.getForObject(url, Map.class);
             if (fbProfile == null || !fbProfile.containsKey("email")) {
-                throw new BadRequestException("Không lấy được email từ Facebook.");
+                throw new BadRequestException("Unable to get email from Facebook.");
             }
 
             String avatarUrl = null;

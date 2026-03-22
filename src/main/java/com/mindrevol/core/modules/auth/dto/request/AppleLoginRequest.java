@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class AppleLoginRequest {
-    @NotBlank(message = "Identity Token không được để trống")
+    @NotBlank(message = "Identity Token must not be blank")
     private String identityToken;
 
     private String user; 

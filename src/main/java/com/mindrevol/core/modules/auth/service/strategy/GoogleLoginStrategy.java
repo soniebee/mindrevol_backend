@@ -35,7 +35,7 @@ public class GoogleLoginStrategy implements SocialLoginStrategy {
         try {
             Map<String, Object> googleProfile = restTemplate.getForObject(userInfoUrl, Map.class);
             if (googleProfile == null || !googleProfile.containsKey("email")) {
-                throw new BadRequestException("Không thể lấy email từ Google.");
+                throw new BadRequestException("Unable to get email from Google.");
             }
 
             return SocialProviderData.builder()
@@ -46,7 +46,7 @@ public class GoogleLoginStrategy implements SocialLoginStrategy {
                     .build();
         } catch (Exception e) {
             log.error("Google verify error", e);
-            throw new BadRequestException("Lỗi xác thực Google: " + e.getMessage());
+            throw new BadRequestException("Google authentication failed: " + e.getMessage());
         }
     }
 }

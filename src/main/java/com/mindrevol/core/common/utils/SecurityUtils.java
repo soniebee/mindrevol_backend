@@ -12,7 +12,7 @@ public class SecurityUtils {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new BadRequestException("Người dùng chưa đăng nhập");
+            throw new BadRequestException("User is not authenticated");
         }
 
         Object principal = authentication.getPrincipal();
@@ -22,7 +22,7 @@ public class SecurityUtils {
             return ((User) principal).getId();
         }
 
-        throw new BadRequestException("Không xác định được danh tính người dùng");
+        throw new BadRequestException("Unable to determine user identity");
     }
 
     // Hàm lấy toàn bộ User Entity (nếu cần)
@@ -31,6 +31,6 @@ public class SecurityUtils {
         if (authentication != null && authentication.getPrincipal() instanceof User) {
             return (User) authentication.getPrincipal();
         }
-        throw new BadRequestException("Người dùng chưa đăng nhập");
+        throw new BadRequestException("User is not authenticated");
     }
 }

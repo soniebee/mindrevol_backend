@@ -33,13 +33,13 @@ public class UserBlockServiceImpl implements UserBlockService {
     @Transactional
     public void blockUser(String currentUserId, String blockedId) { // [UUID]
         if (currentUserId.equals(blockedId)) {
-            throw new BadRequestException("Không thể tự chặn chính mình");
+            throw new BadRequestException("You cannot block yourself");
         }
 
         if (!userBlockRepository.existsByBlockerIdAndBlockedId(currentUserId, blockedId)) {
             User blocker = userRepository.findById(currentUserId).orElseThrow();
             User blocked = userRepository.findById(blockedId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                    .orElseThrow(() -> new ResourceNotFoundException("User does not exist"));
 
             // [FIX] Xóa .createdAt(), để BaseEntity tự động xử lý
             UserBlock block = UserBlock.builder()

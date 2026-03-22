@@ -9,11 +9,11 @@ import lombok.Setter;
 @Getter
 @Setter
 public class VerifyOtpRequest {
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không đúng định dạng")
+    @NotBlank(message = "Email must not be blank")
+    @Email(message = "Invalid email format")
     private String email;
 
-    @NotBlank(message = "Mã OTP không được để trống")
-    @Size(min = 6, max = 6, message = "Mã OTP phải có 6 chữ số")
+    @NotBlank(message = "OTP code must not be blank")
+    @Size(min = 6, max = 6, message = "OTP code must be 6 digits")
     private String otpCode;
 }

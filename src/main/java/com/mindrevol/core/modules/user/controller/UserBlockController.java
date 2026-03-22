@@ -16,7 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-@Tag(name = "User Block", description = "Quản lý chặn người dùng")
+@Tag(name = "User Block", description = "User block management")
 public class UserBlockController {
 
     private final UserBlockService userBlockService;
@@ -24,7 +24,7 @@ public class UserBlockController {
     // [UUID] @PathVariable String
     @PostMapping("/blocks/{targetId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Chặn người dùng")
+    @Operation(summary = "Block user")
     public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable String targetId) {
         String currentUserId = SecurityUtils.getCurrentUserId();
         userBlockService.blockUser(currentUserId, targetId);
@@ -33,7 +33,7 @@ public class UserBlockController {
 
     @DeleteMapping("/blocks/{targetId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Bỏ chặn người dùng")
+    @Operation(summary = "Unblock user")
     public ResponseEntity<ApiResponse<Void>> unblockUser(@PathVariable String targetId) {
         String currentUserId = SecurityUtils.getCurrentUserId();
         userBlockService.unblockUser(currentUserId, targetId);
@@ -42,7 +42,7 @@ public class UserBlockController {
 
     @GetMapping("/me/blocks")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Lấy danh sách chặn")
+    @Operation(summary = "Get block list")
     public ResponseEntity<ApiResponse<List<UserSummaryResponse>>> getBlockList() {
         String userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(ApiResponse.success(userBlockService.getBlockList(userId)));

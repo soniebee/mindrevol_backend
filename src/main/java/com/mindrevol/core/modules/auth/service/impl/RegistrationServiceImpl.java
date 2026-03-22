@@ -56,12 +56,12 @@ public class RegistrationServiceImpl implements RegistrationService {
     @Override
     public void registerUserStep1(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email đã được sử dụng bởi một tài khoản khác.");
+            throw new BadRequestException("Email is already used by another account.");
         }
         if (userRepository.existsByHandle(request.getHandle())) {
-            throw new BadRequestException("Handle @" + request.getHandle() + " đã tồn tại.");
+            throw new BadRequestException("Handle @" + request.getHandle() + " already exists.");
         }
-        if (request.getDateOfBirth() == null) throw new BadRequestException("Ngày sinh là bắt buộc.");
+        if (request.getDateOfBirth() == null) throw new BadRequestException("Date of birth is required.");
 
         String otpCode = String.format("%06d", new Random().nextInt(999999));
 
@@ -79,14 +79,14 @@ public class RegistrationServiceImpl implements RegistrationService {
         String redisKey = REG_TEMP_PREFIX + request.getEmail();
         redisTemplate.opsForValue().set(redisKey, tempData, REG_TEMP_TTL_MINUTES, TimeUnit.MINUTES);
 
-        String subject = "Xác thực đăng ký tài khoản MindRevol";
+        String subject = "MindRevol account registration verification";
         String content = "<div style='font-family: sans-serif; padding: 20px; color: #333;'>" +
-                "<h2>Xin chào " + request.getFullname() + ",</h2>" +
-                "<p>Cảm ơn bạn đã đăng ký tham gia MindRevol.</p>" +
-                "<p>Mã xác thực (OTP) của bạn là:</p>" +
+                "<h2>Hello " + request.getFullname() + ",</h2>" +
+                "<p>Thank you for registering with MindRevol.</p>" +
+                "<p>Your verification code (OTP) is:</p>" +
                 "<h1 style='color: #4F46E5; letter-spacing: 5px; background: #f3f4f6; display: inline-block; padding: 10px 20px; border-radius: 8px;'>" + otpCode + "</h1>" +
-                "<p>Mã này có hiệu lực trong vòng <b>10 phút</b>.</p>" +
-                "<p style='font-size: 12px; color: #666;'>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email.</p>" +
+                "<p>This code is valid for <b>10 minutes</b>.</p>" +
+                "<p style='font-size: 12px; color: #666;'>If you did not request this, please ignore this email.</p>" +
                 "</div>";
         
         EmailTask task = EmailTask.builder()
@@ -107,7 +107,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         RegisterTempData tempData = (RegisterTempData) redisTemplate.opsForValue().get(redisKey);
 
         if (tempData == null) {
-            throw new BadRequestException("Mã xác thực đã hết hạn hoặc email không chính xác. Vui lòng đăng ký lại.");
+            throw new BadRequestException("Verification code has expired or email is incorrect. Please register again.");
         }
 
         if (!tempData.getOtpCode().equals(request.getOtpCode())) {
@@ -116,15 +116,15 @@ public class RegistrationServiceImpl implements RegistrationService {
             
             if (currentRetry > 5) {
                 redisTemplate.delete(redisKey);
-                throw new BadRequestException("Bạn đã nhập sai quá nhiều lần. Phiên đăng ký đã bị hủy.");
+                throw new BadRequestException("You entered incorrect OTP too many times. Registration session has been canceled.");
             }
             
             redisTemplate.opsForValue().set(redisKey, tempData, REG_TEMP_TTL_MINUTES, TimeUnit.MINUTES);
-            throw new BadRequestException("Mã OTP không chính xác. Bạn còn " + (6 - currentRetry) + " lần thử.");
+            throw new BadRequestException("Incorrect OTP code. You have " + (6 - currentRetry) + " attempts left.");
         }
 
         if (userRepository.existsByHandle(tempData.getHandle())) {
-            throw new BadRequestException("Rất tiếc, Handle @" + tempData.getHandle() + " vừa bị người khác đăng ký. Vui lòng chọn Handle khác.");
+            throw new BadRequestException("Sorry, handle @" + tempData.getHandle() + " has just been taken by another user. Please choose a different handle.");
         }
 
         Role userRole = roleRepository.findByName("USER")
@@ -158,7 +158,7 @@ public class RegistrationServiceImpl implements RegistrationService {
         RegisterTempData tempData = (RegisterTempData) redisTemplate.opsForValue().get(redisKey);
 
         if (tempData == null) {
-            throw new BadRequestException("Phiên đăng ký không tồn tại hoặc đã hết hạn. Vui lòng đăng ký lại.");
+            throw new BadRequestException("Registration session does not exist or has expired. Please register again.");
         }
 
         String newOtp = String.format("%06d", new Random().nextInt(999999));
@@ -166,8 +166,8 @@ public class RegistrationServiceImpl implements RegistrationService {
         
         redisTemplate.opsForValue().set(redisKey, tempData, REG_TEMP_TTL_MINUTES, TimeUnit.MINUTES);
 
-        String subject = "Gửi lại mã xác thực - MindRevol";
-        String content = "<p>Mã xác thực MỚI của bạn là: <b style='font-size: 20px; color: #4F46E5;'>" + newOtp + "</b></p>";
+        String subject = "Resend verification code - MindRevol";
+        String content = "<p>Your NEW verification code is: <b style='font-size: 20px; color: #4F46E5;'>" + newOtp + "</b></p>";
         
         EmailTask task = EmailTask.builder()
                 .toEmail(tempData.getEmail())
@@ -205,10 +205,10 @@ public class RegistrationServiceImpl implements RegistrationService {
 
     @Override
     public void activateUserAccount(String token) {
-        UserActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(() -> new BadRequestException("Token không hợp lệ."));
+        UserActivationToken activationToken = activationTokenRepository.findByToken(token).orElseThrow(() -> new BadRequestException("Invalid token."));
         if (activationToken.isExpired()) {
             activationTokenRepository.delete(activationToken);
-            throw new BadRequestException("Token đã hết hạn.");
+            throw new BadRequestException("Token has expired.");
         }
         User user = activationToken.getUser();
         user.setStatus(UserStatus.ACTIVE);

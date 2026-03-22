@@ -10,16 +10,16 @@ public interface PasswordService {
     // Gửi email quên mật khẩu
     void forgotPassword(ForgotPasswordRequest request);
 
-    // Đặt lại mật khẩu từ token quên mật khẩu
+    // Reset password từ token quên mật khẩu
     void resetPassword(ResetPasswordRequest request);
 
-    // Đổi mật khẩu (Khi đã đăng nhập)
+    // Change password (Khi đã đăng nhập)
     void changePassword(ChangePasswordRequest request, String userEmail);
 
     // Kiểm tra user có mật khẩu chưa (Dành cho user Social)
     boolean hasPassword(String email);
 
-    // Tạo mật khẩu mới (Dành cho user Social lần đầu đặt pass)
+    // Create password (Dành cho user Social lần đầu đặt pass)
     void createPassword(CreatePasswordRequest request, String email);
 
     // Cập nhật mật khẩu bằng OTP (Bảo mật cao hơn)
