@@ -1,11 +1,13 @@
 package com.mindrevol.core.modules.user.controller;
 
 import com.mindrevol.core.common.dto.ApiResponse;
+import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.utils.SecurityUtils;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.user.dto.request.UpdateProfileRequest;
 import com.mindrevol.core.modules.user.dto.request.UpdateNotificationSettingsRequest;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
+import com.mindrevol.core.modules.user.dto.response.NotificationSettingsResponse;
 import com.mindrevol.core.modules.user.dto.response.UserDataExport;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
@@ -77,9 +79,13 @@ public class UserController {
     }
     
     @PatchMapping("/fcm-token")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> updateFcmToken(
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal User currentUser) {
+        if (currentUser == null) {
+            throw new BadRequestException("Không xác định được người dùng hiện tại");
+        }
         String token = body.get("token");
         userService.updateFcmToken(currentUser.getId(), token);
         return ResponseEntity.ok(ApiResponse.success("Updated FCM Token"));
@@ -131,18 +137,43 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Đã hủy liên kết tài khoản " + provider));
     }
 
-    @GetMapping("/me/notification-settings")
+    @GetMapping({"/me/notification-settings", "/settings/notifications"})
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<UserSettings>> getMyNotificationSettings() {
+    public ResponseEntity<ApiResponse<NotificationSettingsResponse>> getMyNotificationSettings() {
         String userId = SecurityUtils.getCurrentUserId();
-        return ResponseEntity.ok(ApiResponse.success(userService.getNotificationSettings(userId)));
+        UserSettings settings = userService.getNotificationSettings(userId);
+        return ResponseEntity.ok(ApiResponse.success(toNotificationSettingsResponse(settings)));
     }
 
-    @PatchMapping("/me/notification-settings")
+    @RequestMapping(value = {"/me/notification-settings", "/settings/notifications"}, method = {RequestMethod.PATCH, RequestMethod.PUT})
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<UserSettings>> updateMyNotificationSettings(
+    public ResponseEntity<ApiResponse<NotificationSettingsResponse>> updateMyNotificationSettings(
             @RequestBody UpdateNotificationSettingsRequest request) {
         String userId = SecurityUtils.getCurrentUserId();
-        return ResponseEntity.ok(ApiResponse.success(userService.updateNotificationSettings(userId, request)));
+        if (request == null) {
+            request = new UpdateNotificationSettingsRequest();
+        }
+        UserSettings settings = userService.updateNotificationSettings(userId, request);
+        return ResponseEntity.ok(ApiResponse.success(toNotificationSettingsResponse(settings)));
+    }
+
+    @DeleteMapping({"/me/notification-settings", "/settings/notifications"})
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<NotificationSettingsResponse>> resetMyNotificationSettings() {
+        String userId = SecurityUtils.getCurrentUserId();
+        UserSettings settings = userService.resetNotificationSettings(userId);
+        return ResponseEntity.ok(ApiResponse.success(toNotificationSettingsResponse(settings)));
+    }
+
+    private NotificationSettingsResponse toNotificationSettingsResponse(UserSettings settings) {
+        return NotificationSettingsResponse.builder()
+                .commentEnabled(settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment())
+                .reactionEnabled(settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction())
+                .messageEnabled(settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage())
+                .journeyEnabled(settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney())
+                .friendRequestEnabled(settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest())
+                .boxInviteEnabled(settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite())
+                .mentionEnabled(settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention())
+                .build();
     }
 }

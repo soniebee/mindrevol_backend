@@ -6,19 +6,19 @@ import com.mindrevol.core.modules.notification.entity.Notification;
 import com.mindrevol.core.modules.notification.entity.NotificationType;
 import com.mindrevol.core.modules.notification.repository.NotificationRepository;
 import com.mindrevol.core.modules.user.entity.User;
+import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.user.repository.UserRepository;
+import com.mindrevol.core.modules.user.repository.UserSettingsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -30,27 +30,52 @@ public class NotificationService {
 
 	private final NotificationRepository notificationRepository;
 	private final UserRepository userRepository;
+	private final UserSettingsRepository userSettingsRepository;
 	private final RedisTemplate<String, Object> redisTemplate;
-	private final FirebaseService firebaseService;
-	private final SimpMessagingTemplate messagingTemplate;
+	private final NotificationDispatchService notificationDispatchService;
 
 	@Async
 	@Transactional
 	public void sendAndSaveNotification(String recipientId, String senderId, NotificationType type,
 										String title, String message, String referenceId, String imageUrl) {
+		sendAndSaveNotificationFull(recipientId, senderId, type, title, message, referenceId, imageUrl, null, null, null);
+	}
 
-		if (type == NotificationType.REACTION || type == NotificationType.COMMENT) {
-			String throttleKey = "noti_throttle:" + recipientId + ":" + type + ":" + referenceId;
+	@Async
+	@Transactional
+	public void sendAndSaveNotificationFull(String recipientId, String senderId, NotificationType type,
+											String title, String message, String referenceId, String imageUrl,
+											String messageKey, String messageArgs, String actionStatus) {
 
-			if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
-				log.info("Spam protection: Skipped notification for user {} type {} ref {}", recipientId, type, referenceId);
+		if (type == NotificationType.DM_NEW_MESSAGE || type == NotificationType.BOXCHAT_NEW_MESSAGE) {
+			String safeSender = senderId == null ? "system" : senderId;
+			String safeReference = referenceId == null ? "none" : referenceId;
+			String debounceKey = "noti_chat_debounce:" + recipientId + ":" + safeSender + ":" + type + ":" + safeReference;
+
+			Boolean firstInWindow = redisTemplate.opsForValue().setIfAbsent(debounceKey, "1", 60, TimeUnit.SECONDS);
+			if (!Boolean.TRUE.equals(firstInWindow)) {
 				return;
 			}
-			redisTemplate.opsForValue().set(throttleKey, "1", 30, TimeUnit.MINUTES);
+		}
+
+		if (type == NotificationType.REACTION || type == NotificationType.COMMENT) {
+			String safeSender = senderId == null ? "system" : senderId;
+			String safeReference = referenceId == null ? "none" : referenceId;
+			String throttleKey = "noti_throttle:" + recipientId + ":" + safeSender + ":" + type + ":" + safeReference;
+
+			if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
+				return;
+			}
+			redisTemplate.opsForValue().set(throttleKey, "1", 30, TimeUnit.SECONDS);
 		}
 
 		User recipient = userRepository.findById(recipientId)
 				.orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
+
+		UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
+		if (settings != null && shouldSkipCompletely(settings, type)) {
+			return;
+		}
 
 		User sender = null;
 		if (senderId != null) {
@@ -58,29 +83,32 @@ public class NotificationService {
 		}
 
 		// [TASK-101] LOGIC GOM NHÓM THÔNG BÁO (AGGREGATION)
-		if (type == NotificationType.REACTION || type == NotificationType.COMMENT) {
+		if ((type == NotificationType.REACTION || type == NotificationType.COMMENT) && referenceId != null) {
 			Optional<Notification> existingOpt = notificationRepository
 					.findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(recipientId, type, referenceId);
 
 			if (existingOpt.isPresent()) {
 				Notification existing = existingOpt.get();
 				// Nếu người tương tác khác với người cuối cùng đã tương tác -> Gộp nhóm
-				if (sender != null && !existing.getSender().getId().equals(senderId)) {
+				String existingSenderId = existing.getSender() != null ? existing.getSender().getId() : null;
+				if (sender != null && existingSenderId != null && !existingSenderId.equals(senderId)) {
 					existing.setActorsCount(existing.getActorsCount() + 1);
 					existing.setSender(sender);
 					existing.setImageUrl(imageUrl);
+					existing.setMessageKey(messageKey);
+					existing.setMessageArgs(messageArgs);
+					existing.setActionStatus(actionStatus);
 
 					String actionText = type == NotificationType.COMMENT ? "bình luận về" : "bày tỏ cảm xúc về";
 					existing.setMessage(sender.getFullname() + " và " + (existing.getActorsCount() - 1) + " người khác đã " + actionText + " bài viết của bạn.");
 
-					// Reset trạng thái để nổi lên lại
+					// Reset trạng thái để FE hiển thị lại như thông báo mới
 					existing.setSeen(false);
-					existing.setCreatedAt(LocalDateTime.now());
 
 					notificationRepository.save(existing);
 					pushToFirebaseAndWebSocket(recipient, sender, existing);
 					return;
-				} else if (sender != null && existing.getSender().getId().equals(senderId)) {
+				} else if (sender != null && existingSenderId != null && existingSenderId.equals(senderId)) {
 					// Chống spam 1 người comment liên tục
 					return;
 				}
@@ -98,6 +126,9 @@ public class NotificationService {
 				.isRead(false)
 				.isSeen(false)
 				.actorsCount(1)
+				.actionStatus(actionStatus)
+				.messageKey(messageKey)
+				.messageArgs(messageArgs)
 				.build();
 
 		notificationRepository.save(notification);
@@ -105,32 +136,28 @@ public class NotificationService {
 	}
 
 	private void pushToFirebaseAndWebSocket(User recipient, User sender, Notification notification) {
-		if (recipient.getFcmToken() != null) {
-			Map<String, String> dataPayload = new HashMap<>();
-			dataPayload.put("type", notification.getType().name());
-			if (notification.getReferenceId() != null) dataPayload.put("referenceId", notification.getReferenceId());
-			if (sender != null) dataPayload.put("senderId", sender.getId());
-			if (notification.getImageUrl() != null) dataPayload.put("imageUrl", notification.getImageUrl());
+		notificationDispatchService.dispatchPush(recipient, sender, notification);
+		notificationDispatchService.dispatchWebSocket(recipient.getId(), toResponse(notification));
+	}
 
-			firebaseService.sendNotification(
-					recipient.getFcmToken(),
-					notification.getTitle(),
-					notification.getMessage(),
-					dataPayload
-			);
+	@Transactional
+	public void updateActionStatusForNotification(String recipientId, NotificationType type, String referenceId, String actionStatus) {
+		if (referenceId == null || actionStatus == null || actionStatus.isBlank()) {
+			return;
 		}
 
-		NotificationResponse response = toResponse(notification);
-		messagingTemplate.convertAndSendToUser(
-				recipient.getId(),
-				"/queue/notifications",
-				response
-		);
+		notificationRepository
+				.findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(recipientId, type, referenceId)
+				.ifPresent(notification -> {
+					notification.setActionStatus(actionStatus);
+					notification.setSeen(false);
+					notificationRepository.save(notification);
+				});
 	}
 
 	@Transactional(readOnly = true)
 	public Page<NotificationResponse> getMyNotifications(String userId, Pageable pageable) {
-		return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId, pageable)
+		return notificationRepository.findByRecipientIdOrderByUpdatedAtDescCreatedAtDesc(userId, pageable)
 				.map(this::toResponse);
 	}
 
@@ -191,9 +218,92 @@ public class NotificationService {
 				.isRead(n.isRead())
 				.isSeen(n.isSeen())
 				.actorsCount(n.getActorsCount())
+				.actionStatus(n.getActionStatus())
+				.messageKey(n.getMessageKey())
+				.messageArgs(n.getMessageArgs())
+				.actionUrls(buildActionUrls(n))
 				.createdAt(n.getCreatedAt())
 				.senderId(n.getSender() != null ? n.getSender().getId() : null)
 				.senderName(n.getSender() != null ? n.getSender().getFullname() : "Hệ thống")
 				.build();
+	}
+
+	private Map<String, String> buildActionUrls(Notification notification) {
+		if (notification.getReferenceId() == null) {
+			return Collections.emptyMap();
+		}
+
+		return switch (notification.getType()) {
+			case FRIEND_REQUEST -> Map.of(
+					"accept", "/api/v1/friends/accept/" + notification.getReferenceId(),
+					"reject", "/api/v1/friends/decline/" + notification.getReferenceId()
+			);
+			case BOX_INVITE -> Map.of(
+					"accept", "/api/v1/boxes/invitations/" + notification.getReferenceId() + "?accept=true",
+					"reject", "/api/v1/boxes/invitations/" + notification.getReferenceId() + "?accept=false"
+			);
+			case JOURNEY_INVITE -> Map.of(
+					"accept", "/api/v1/journey-invitations/" + notification.getReferenceId() + "/accept",
+					"reject", "/api/v1/journey-invitations/" + notification.getReferenceId() + "/reject"
+			);
+			default -> Collections.emptyMap();
+		};
+	}
+
+	private boolean shouldSkipCompletely(UserSettings settings, NotificationType type) {
+		return !isInAppEnabledForType(settings, type)
+				&& !isPushEnabledForType(settings, type)
+				&& !isEmailEnabledForType(settings, type);
+	}
+
+	private boolean isInAppEnabledForType(UserSettings settings, NotificationType type) {
+		if (!settings.isInAppEnabled()) {
+			return false;
+		}
+
+		return switch (type) {
+			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment();
+			case REACTION -> settings.isInAppReaction();
+			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isInAppFriendRequest();
+			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isInAppBoxInvite();
+			case JOURNEY_INVITE -> settings.isInAppJourney();
+			case MOOD_MENTIONED -> settings.isInAppMention();
+			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage();
+			default -> true;
+		};
+	}
+
+	private boolean isPushEnabledForType(UserSettings settings, NotificationType type) {
+		if (!settings.isPushEnabled()) {
+			return false;
+		}
+
+		return switch (type) {
+			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isPushComment() && settings.isPushNewComment();
+			case REACTION -> settings.isPushReaction();
+			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isPushFriendRequestCategory() && settings.isPushFriendRequest();
+			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isPushBoxInvite();
+			case JOURNEY_INVITE -> settings.isPushJourney() && settings.isPushJourneyInvite();
+			case MOOD_MENTIONED -> settings.isPushMention();
+			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isPushMessage();
+			default -> true;
+		};
+	}
+
+	private boolean isEmailEnabledForType(UserSettings settings, NotificationType type) {
+		if (!settings.isEmailEnabled()) {
+			return false;
+		}
+
+		return switch (type) {
+			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isEmailComment();
+			case REACTION -> settings.isEmailReaction();
+			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isEmailFriendRequest();
+			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isEmailBoxInvite();
+			case JOURNEY_INVITE -> settings.isEmailJourney();
+			case MOOD_MENTIONED -> settings.isEmailMention();
+			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isEmailMessage();
+			default -> settings.isEmailUpdates();
+		};
 	}
 }

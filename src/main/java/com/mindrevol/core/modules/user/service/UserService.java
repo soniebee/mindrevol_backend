@@ -40,6 +40,8 @@ public interface UserService {
 
     UserSettings updateNotificationSettings(String userId, UpdateNotificationSettingsRequest request);
 
+    UserSettings resetNotificationSettings(String userId);
+
     void createDefaultSettings(User user);
 
     List<LinkedAccountResponse> getLinkedAccounts(String userId);

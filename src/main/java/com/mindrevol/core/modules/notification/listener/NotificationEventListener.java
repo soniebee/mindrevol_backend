@@ -17,9 +17,6 @@ import com.mindrevol.core.modules.notification.entity.NotificationType;
 import com.mindrevol.core.modules.notification.service.NotificationService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
-
-// [BỔ SUNG SPRINT 2]
-// import com.mindrevol.core.modules.user.event.FriendRequestEvent; //task 401
 import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.concurrent.TimeUnit;
 
@@ -175,7 +172,7 @@ public class NotificationEventListener {
                 event.getCheckinOwnerId(), event.getReactorId(), event.getCheckinId());
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
-            log.info("Chặn spam thông báo Checkin Reaction: {}", throttleKey);
+            log.debug("Skip throttled checkin reaction notification: {}", throttleKey);
             return;
         }
 
@@ -215,7 +212,7 @@ public class NotificationEventListener {
                 event.getMoodOwnerId(), event.getReactorId(), event.getMoodId());
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey(throttleKey))) {
-            log.info("Chặn spam thông báo Mood Reaction: {}", throttleKey);
+            log.debug("Skip throttled mood reaction notification: {}", throttleKey);
             return;
         }
 
@@ -241,28 +238,6 @@ public class NotificationEventListener {
         );
     }
 
-    // --- [BỔ SUNG SPRINT 2]: XỬ LÝ LỜI MỜI KẾT BẠN (TASK-401) ---
-//    @Async
-//    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-//    public void handleFriendRequest(FriendRequestEvent event) {
-//        User sender = userRepository.findById(event.getSenderId()).orElse(null);
-//        User recipient = userRepository.findById(event.getRecipientId()).orElse(null);
-//
-//        if (sender == null || recipient == null) return;
-//
-//        notificationService.sendAndSaveNotificationFull(
-//                recipient.getId(),
-//                sender.getId(),
-//                NotificationType.FRIEND_REQUEST,
-//                "Lời mời kết bạn",
-//                sender.getFullname() + " đã gửi cho bạn lời mời kết bạn",
-//                event.getRequestId(),
-//                sender.getAvatarUrl(),
-//                "noti.friend.request",
-//                "[\"" + sender.getFullname() + "\"]",
-//                "PENDING" // Kích hoạt UI hiển thị nút Chấp nhận/Từ chối
-//        );
-//    }
 
     // --- 6. XỬ LÝ NHẮC TÊN TRONG BÌNH LUẬN ---
     private void notifyMentions(CommentPostedEvent event, Checkin checkin, User commenter) {
