@@ -14,9 +14,14 @@ public class NotificationResponse {
     private String type;
     private String referenceId;
     private String imageUrl;
-    
+
     @JsonProperty("isRead")
     private boolean isRead;
+
+    @JsonProperty("isSeen")
+    private boolean isSeen;
+
+    private int actorsCount;
 
     private LocalDateTime createdAt;
     private String senderId;

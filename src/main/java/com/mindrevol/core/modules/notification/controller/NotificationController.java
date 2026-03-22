@@ -25,13 +25,13 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success(notificationService.getMyNotifications(userId, pageable)));
     }
 
+    // [TASK-102] Logic là count unseen nhưng path giữ nguyên để tương thích Frontend cũ nếu cần
     @GetMapping("/unread-count")
-    public ResponseEntity<ApiResponse<Long>> countUnread() {
+    public ResponseEntity<ApiResponse<Long>> countUnseen() {
         String userId = SecurityUtils.getCurrentUserId();
-        return ResponseEntity.ok(ApiResponse.success(notificationService.countUnread(userId)));
+        return ResponseEntity.ok(ApiResponse.success(notificationService.countUnseen(userId)));
     }
 
-    // [UUID] @PathVariable String id
     @PatchMapping("/{id}/read")
     public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable String id) {
         String userId = SecurityUtils.getCurrentUserId();
@@ -43,6 +43,14 @@ public class NotificationController {
     public ResponseEntity<ApiResponse<Void>> markAllAsRead() {
         String userId = SecurityUtils.getCurrentUserId();
         notificationService.markAllAsRead(userId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    // [TASK-102] API Đánh dấu đã thấy (khi mở Panel)
+    @PatchMapping("/seen-all")
+    public ResponseEntity<ApiResponse<Void>> markAllAsSeen() {
+        String userId = SecurityUtils.getCurrentUserId();
+        notificationService.markAllAsSeen(userId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

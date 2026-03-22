@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
-import java.util.UUID; // Nhớ import thư viện UUID này nha
 
 @Repository
 public interface BoxMemberRepository extends JpaRepository<BoxMember, String> { // Đã đổi String thành UUID ở đây

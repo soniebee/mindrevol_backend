@@ -8,6 +8,7 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +50,13 @@ public class Checkin extends BaseEntity {
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
+    // THÊM: Lưu ID của Chapter nếu tính năng Chapter được bật
+    @Column(name = "chapter_id")
+    private String chapterId;
+
+    // THÊM: Thời gian hết hạn (Dùng cho bài đăng UNSORTED 14 ngày)
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
     // --- CÁC TRƯỜNG CONTEXT/PLATFORM (GIỮ NGUYÊN) ---
 
     @Column(length = 50)

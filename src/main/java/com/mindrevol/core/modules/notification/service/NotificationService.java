@@ -17,8 +17,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -44,7 +46,6 @@ public class NotificationService {
 				log.info("Spam protection: Skipped notification for user {} type {} ref {}", recipientId, type, referenceId);
 				return;
 			}
-
 			redisTemplate.opsForValue().set(throttleKey, "1", 30, TimeUnit.MINUTES);
 		}
 
@@ -56,6 +57,36 @@ public class NotificationService {
 			sender = userRepository.findById(senderId).orElse(null);
 		}
 
+		// [TASK-101] LOGIC GOM NHÓM THÔNG BÁO (AGGREGATION)
+		if (type == NotificationType.REACTION || type == NotificationType.COMMENT) {
+			Optional<Notification> existingOpt = notificationRepository
+					.findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(recipientId, type, referenceId);
+
+			if (existingOpt.isPresent()) {
+				Notification existing = existingOpt.get();
+				// Nếu người tương tác khác với người cuối cùng đã tương tác -> Gộp nhóm
+				if (sender != null && !existing.getSender().getId().equals(senderId)) {
+					existing.setActorsCount(existing.getActorsCount() + 1);
+					existing.setSender(sender);
+					existing.setImageUrl(imageUrl);
+
+					String actionText = type == NotificationType.COMMENT ? "bình luận về" : "bày tỏ cảm xúc về";
+					existing.setMessage(sender.getFullname() + " và " + (existing.getActorsCount() - 1) + " người khác đã " + actionText + " bài viết của bạn.");
+
+					// Reset trạng thái để nổi lên lại
+					existing.setSeen(false);
+					existing.setCreatedAt(LocalDateTime.now());
+
+					notificationRepository.save(existing);
+					pushToFirebaseAndWebSocket(recipient, sender, existing);
+					return;
+				} else if (sender != null && existing.getSender().getId().equals(senderId)) {
+					// Chống spam 1 người comment liên tục
+					return;
+				}
+			}
+		}
+
 		Notification notification = Notification.builder()
 				.recipient(recipient)
 				.sender(sender)
@@ -64,29 +95,32 @@ public class NotificationService {
 				.message(message)
 				.referenceId(referenceId)
 				.imageUrl(imageUrl)
-				.isRead(false) // Mặc định là chưa đọc
+				.isRead(false)
+				.isSeen(false)
+				.actorsCount(1)
 				.build();
 
 		notificationRepository.save(notification);
+		pushToFirebaseAndWebSocket(recipient, sender, notification);
+	}
 
+	private void pushToFirebaseAndWebSocket(User recipient, User sender, Notification notification) {
 		if (recipient.getFcmToken() != null) {
 			Map<String, String> dataPayload = new HashMap<>();
-			dataPayload.put("type", type.name());
-			if (referenceId != null) dataPayload.put("referenceId", referenceId);
+			dataPayload.put("type", notification.getType().name());
+			if (notification.getReferenceId() != null) dataPayload.put("referenceId", notification.getReferenceId());
 			if (sender != null) dataPayload.put("senderId", sender.getId());
-			if (imageUrl != null) dataPayload.put("imageUrl", imageUrl);
+			if (notification.getImageUrl() != null) dataPayload.put("imageUrl", notification.getImageUrl());
 
 			firebaseService.sendNotification(
 					recipient.getFcmToken(),
-					title,
-					message,
+					notification.getTitle(),
+					notification.getMessage(),
 					dataPayload
 			);
 		}
 
 		NotificationResponse response = toResponse(notification);
-
-		// Gửi qua WebSocket
 		messagingTemplate.convertAndSendToUser(
 				recipient.getId(),
 				"/queue/notifications",
@@ -109,20 +143,26 @@ public class NotificationService {
 			return;
 		}
 
-		// Cập nhật trạng thái và Lưu Cứng vào DB
 		notification.setRead(true);
+		notification.setSeen(true); // Read thì chắc chắn là Seen rồi
 		notificationRepository.save(notification);
 	}
 
 	@Transactional
 	public void markAllAsRead(String userId) {
-		// [LƯU Ý] Đảm bảo hàm này trong NotificationRepository đã có @Modifying
 		notificationRepository.markAllAsRead(userId);
 	}
 
+	// [TASK-102] Đổi đếm unread thành unseen cho icon chuông
 	@Transactional(readOnly = true)
-	public long countUnread(String userId) {
-		return notificationRepository.countByRecipientIdAndIsReadFalse(userId);
+	public long countUnseen(String userId) {
+		return notificationRepository.countByRecipientIdAndIsSeenFalse(userId);
+	}
+
+	// [TASK-102] Đánh dấu đã thấy (Seen) khi mở menu
+	@Transactional
+	public void markAllAsSeen(String userId) {
+		notificationRepository.markAllAsSeen(userId);
 	}
 
 	@Transactional
@@ -130,7 +170,6 @@ public class NotificationService {
 		Notification notification = notificationRepository.findById(notificationId)
 				.orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo"));
 
-		// Phải đúng chủ nhân mới được xóa
 		if (notification.getRecipient().getId().equals(userId)) {
 			notificationRepository.delete(notification);
 		}
@@ -138,7 +177,6 @@ public class NotificationService {
 
 	@Transactional
 	public void deleteAllMyNotifications(String userId) {
-		// Hàm này tự viết thêm bên NotificationRepository
 		notificationRepository.deleteAllByRecipientId(userId);
 	}
 
@@ -151,6 +189,8 @@ public class NotificationService {
 				.referenceId(n.getReferenceId())
 				.imageUrl(n.getImageUrl())
 				.isRead(n.isRead())
+				.isSeen(n.isSeen())
+				.actorsCount(n.getActorsCount())
 				.createdAt(n.getCreatedAt())
 				.senderId(n.getSender() != null ? n.getSender().getId() : null)
 				.senderName(n.getSender() != null ? n.getSender().getFullname() : "Hệ thống")

@@ -18,7 +18,7 @@ public interface UserMapper {
 
     @Mapping(source = "createdAt", target = "joinedAt")
     @Mapping(target = "roles", source = "roles", qualifiedByName = "mapRoles")
-    @Mapping(target = "followerCount", ignore = true) 
+    @Mapping(target = "followerCount", ignore = true)
     @Mapping(target = "followingCount", ignore = true)
     @Mapping(target = "isFollowedByCurrentUser", ignore = true)
     UserProfileResponse toProfileResponse(User user);

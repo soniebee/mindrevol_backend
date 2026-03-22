@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "user_activation_tokens")
 public class UserActivationToken {
-
+    
     @Id
     @UuidGenerator
     @Column(length = 36)
