@@ -1,11 +1,14 @@
+# --- Java & Gradle Standard ---
 HELP.md
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+bin/
+out/
 
-### STS ###
+# --- IDE Files (Eclipse, IntelliJ, VS Code) ---
 .apt_generated
 .classpath
 .factorypath
@@ -13,30 +16,30 @@ build/
 .settings
 .springBeans
 .sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-### IntelliJ IDEA ###
 .idea
 *.iws
 *.iml
 *.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
 .vscode/
+/nbproject/
+/nbbuild/
 
-logs/
+# --- Logs & Crash Files ---
 *.log
+hs_err_pid*
+replay_pid*
 
-src/main/resources/
+# --- SECURITY & SECRETS (BẮT BUỘC) ---
+# Bỏ qua file cấu hình Firebase thật
+src/main/resources/firebase-service-account.json
+firebase-service-account.json
+src/main/resources/keystore.p12
+
+# Bỏ qua các file backup (bạn đã đổi tên file key thành .bak)
+*.bak
+
+# Bỏ qua file biến môi trường
+.env
+
+# (Tùy chọn) Bỏ qua file cấu hình dev nếu bạn sợ lộ
+src/main/resources/application-dev.properties
