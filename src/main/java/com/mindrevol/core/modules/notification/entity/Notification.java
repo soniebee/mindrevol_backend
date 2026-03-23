@@ -14,7 +14,6 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 @SuperBuilder
 public class Notification extends BaseEntity {
-    // [UUID] ID chính kế thừa từ BaseEntity (String)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
@@ -34,7 +33,6 @@ public class Notification extends BaseEntity {
     @Column(nullable = false)
     private String message;
 
-    // [UUID] Luôn lưu ID tham chiếu dưới dạng String
     private String referenceId;
 
     private String imageUrl;
@@ -42,4 +40,14 @@ public class Notification extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean isRead = false;
+
+    // [TASK-102] Tách biệt trạng thái Seen (Đã thấy notification trên chuông)
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isSeen = false;
+
+    // [TASK-101] Phục vụ việc gom nhóm (Ví dụ: A và 2 người khác...)
+    @Column(nullable = false)
+    @Builder.Default
+    private int actorsCount = 1;
 }

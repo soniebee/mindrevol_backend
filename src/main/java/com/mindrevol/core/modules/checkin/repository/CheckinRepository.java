@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.checkin.repository;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
+import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,9 +32,6 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     // 5. Lấy tất cả checkin của user (cho trang Profile cá nhân)
     List<Checkin> findAllByUserIdOrderByCreatedAtDesc(String userId);
 
-    // =========================================================================
-    //  PHẦN CORE: NEWSFEED (ĐÃ CẬP NHẬT)
-    // =========================================================================
 
     // 6. Newsfeed tổng hợp: Lấy bài 3 ngày gần nhất (sinceDate) + loại bỏ người block
     @Query("SELECT c FROM Checkin c " +
@@ -76,4 +74,22 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     // 10. Lấy toàn bộ ảnh Active có ImageUrl trong hành trình để tạo video Recap
     @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED'")
     List<Checkin> findMediaByJourneyId(@Param("journeyId") String journeyId);
+
+    //LỌC THEO CHAPTER VÀ TÌM BÀI HẾT HẠN
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.chapterId = :chapterId ORDER BY c.createdAt DESC")
+    Page<Checkin> findByJourneyIdAndChapterIdOrderByCreatedAtDesc(@Param("journeyId") String journeyId, @Param("chapterId") String chapterId, Pageable pageable);
+
+    @Query("SELECT c FROM Checkin c " +
+            "JOIN FETCH c.user u " +
+            "WHERE c.journey.id = :journeyId " +
+            "AND c.chapterId = :chapterId " +
+            "AND c.createdAt <= :cursor " +
+            "AND u.id NOT IN :excludedUserIds " +
+            "ORDER BY c.createdAt DESC")
+    List<Checkin> findJourneyFeedByChapterAndCursor(@Param("journeyId") String journeyId,
+                                                    @Param("chapterId") String chapterId,
+                                                    @Param("cursor") LocalDateTime cursor,
+                                                    @Param("excludedUserIds") Collection<String> excludedUserIds,
+                                                    Pageable pageable);
+
 }

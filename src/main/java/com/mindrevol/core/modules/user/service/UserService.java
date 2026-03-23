@@ -18,7 +18,7 @@ public interface UserService {
     UserProfileResponse getMyProfile(String currentEmail);
 
     UserProfileResponse getPublicProfile(String handle, String currentUserEmail);
-    
+
     UserProfileResponse getPublicProfileById(String userId, String currentUserEmail);
 
     // [CẬP NHẬT] Thêm MultipartFile vào tham số
@@ -29,11 +29,11 @@ public interface UserService {
     User getUserById(String id);
 
     void deleteMyAccount(String userId);
-    
+
     UserDataExport exportMyData(String userId);
-    
+
     List<UserSummaryResponse> searchUsers(String query, String currentUserId);
-    
+
     List<JourneyResponse> getUserRecaps(String userId);
 
     UserSettings getNotificationSettings(String userId);

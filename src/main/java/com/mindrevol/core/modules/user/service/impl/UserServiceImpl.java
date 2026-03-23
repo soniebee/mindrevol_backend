@@ -154,15 +154,21 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void deleteMyAccount(String userId) { 
         User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        // 1. Đổi email và handle
         long timestamp = System.currentTimeMillis();
         user.setEmail(user.getEmail() + "_deleted_" + timestamp);
         user.setHandle(user.getHandle() + "_deleted_" + timestamp);
-        userRepository.save(user);
         
+        // [QUAN TRỌNG NHẤT]: Ép Hibernate phải cập nhật Email xuống Database ngay lập tức!
+        userRepository.saveAndFlush(user); 
+        
+        // 2. Xóa liên kết mạng xã hội
         List<SocialAccount> socialAccounts = socialAccountRepository.findAllByUserId(userId);
         socialAccountRepository.deleteAll(socialAccounts);
         
-        userRepository.deleteById(user.getId());
+        // 3. Xóa user (Kích hoạt @SQLDelete)
+        userRepository.delete(user);
     }
 
     @Override
