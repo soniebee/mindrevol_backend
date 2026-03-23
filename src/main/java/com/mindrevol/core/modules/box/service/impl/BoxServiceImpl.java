@@ -72,6 +72,7 @@ public class BoxServiceImpl implements BoxService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<BoxResponse> getMyBoxes(String userId, Pageable pageable) {
         Page<Box> boxes = boxRepository.findMyBoxes(userId, pageable);
         return boxes.map(box -> {
@@ -81,6 +82,7 @@ public class BoxServiceImpl implements BoxService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BoxDetailResponse getBoxDetail(String boxId, String userId) {
         Box box = boxRepository.findById(boxId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
