@@ -44,18 +44,13 @@ public class NotificationDispatchService {
         // --- BẮT ĐẦU LOGIC TASK 201 & 202 ---
         UserSettings settings = userSettingsRepository.findByUserId(recipient.getId()).orElse(null);
         if (settings != null) {
-            // 1. Kiểm tra master switch (Bật/tắt toàn bộ push)
-            if (!settings.isPushEnabled()) {
+            // Category-only settings: nếu danh mục tắt thì bỏ qua push.
+            if (!isCategoryTypeAllowed(settings, notification.getType())) {
                 return;
             }
 
-            // 2. Kiểm tra chế độ Không làm phiền (DND)
+            // Kiểm tra chế độ Không làm phiền (DND)
             if (isDndActive(settings, recipient.getTimezone())) {
-                return;
-            }
-
-            // 3. Kiểm tra tuỳ chỉnh cho từng loại thông báo
-            if (!isNotificationTypeAllowed(settings, notification.getType())) {
                 return;
             }
         }
@@ -82,7 +77,7 @@ public class NotificationDispatchService {
     @Async("taskExecutor")
     public void dispatchWebSocket(String recipientId, NotificationResponse response) {
         UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
-        if (settings != null && (!settings.isInAppEnabled() || !isInAppTypeAllowed(settings, response.getType()))) {
+        if (settings != null && !isCategoryTypeAllowed(settings, response.getType())) {
             return;
         }
 
@@ -114,36 +109,27 @@ public class NotificationDispatchService {
         }
     }
 
-    private boolean isNotificationTypeAllowed(UserSettings settings, NotificationType type) {
+    private boolean isCategoryTypeAllowed(UserSettings settings, NotificationType type) {
         return switch (type) {
-            case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isPushComment() && settings.isPushNewComment();
-            case REACTION -> settings.isPushReaction();
-            case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isPushFriendRequestCategory() && settings.isPushFriendRequest();
-            case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isPushBoxInvite();
-            case JOURNEY_INVITE -> settings.isPushJourney() && settings.isPushJourneyInvite();
-            case MOOD_MENTIONED -> settings.isPushMention();
-            case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isPushMessage();
+            case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
+            case REACTION -> settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
+            case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
+            case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
+            case JOURNEY_INVITE -> settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
+            case MOOD_MENTIONED -> settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
+            case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
             default -> true;
         };
     }
 
-    private boolean isInAppTypeAllowed(UserSettings settings, String type) {
+    private boolean isCategoryTypeAllowed(UserSettings settings, String type) {
         if (type == null || type.isBlank()) {
             return true;
         }
 
         try {
             NotificationType notificationType = NotificationType.valueOf(type);
-            return switch (notificationType) {
-                case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment();
-                case REACTION -> settings.isInAppReaction();
-                case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isInAppFriendRequest();
-                case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isInAppBoxInvite();
-                case JOURNEY_INVITE -> settings.isInAppJourney();
-                case MOOD_MENTIONED -> settings.isInAppMention();
-                case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage();
-                default -> true;
-            };
+            return isCategoryTypeAllowed(settings, notificationType);
         } catch (IllegalArgumentException ignored) {
             return true;
         }

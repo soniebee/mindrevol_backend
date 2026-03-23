@@ -73,7 +73,7 @@ public class NotificationService {
 				.orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
 
 		UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
-		if (settings != null && shouldSkipCompletely(settings, type)) {
+		if (settings != null && !isCategoryEnabled(settings, type)) {
 			return;
 		}
 
@@ -82,37 +82,8 @@ public class NotificationService {
 			sender = userRepository.findById(senderId).orElse(null);
 		}
 
-		// [TASK-101] LOGIC GOM NHÓM THÔNG BÁO (AGGREGATION)
-		if ((type == NotificationType.REACTION || type == NotificationType.COMMENT) && referenceId != null) {
-			Optional<Notification> existingOpt = notificationRepository
-					.findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(recipientId, type, referenceId);
-
-			if (existingOpt.isPresent()) {
-				Notification existing = existingOpt.get();
-				// Nếu người tương tác khác với người cuối cùng đã tương tác -> Gộp nhóm
-				String existingSenderId = existing.getSender() != null ? existing.getSender().getId() : null;
-				if (sender != null && existingSenderId != null && !existingSenderId.equals(senderId)) {
-					existing.setActorsCount(existing.getActorsCount() + 1);
-					existing.setSender(sender);
-					existing.setImageUrl(imageUrl);
-					existing.setMessageKey(messageKey);
-					existing.setMessageArgs(messageArgs);
-					existing.setActionStatus(actionStatus);
-
-					String actionText = type == NotificationType.COMMENT ? "bình luận về" : "bày tỏ cảm xúc về";
-					existing.setMessage(sender.getFullname() + " và " + (existing.getActorsCount() - 1) + " người khác đã " + actionText + " bài viết của bạn.");
-
-					// Reset trạng thái để FE hiển thị lại như thông báo mới
-					existing.setSeen(false);
-
-					notificationRepository.save(existing);
-					pushToFirebaseAndWebSocket(recipient, sender, existing);
-					return;
-				} else if (sender != null && existingSenderId != null && existingSenderId.equals(senderId)) {
-					// Chống spam 1 người comment liên tục
-					return;
-				}
-			}
+		if (tryAggregateReactionNotification(recipient, sender, type, referenceId, imageUrl, message, messageKey, messageArgs, actionStatus)) {
+			return;
 		}
 
 		Notification notification = Notification.builder()
@@ -133,6 +104,61 @@ public class NotificationService {
 
 		notificationRepository.save(notification);
 		pushToFirebaseAndWebSocket(recipient, sender, notification);
+	}
+
+	private boolean tryAggregateReactionNotification(User recipient, User sender, NotificationType type,
+										 String referenceId, String imageUrl, String fallbackMessage,
+										 String messageKey, String messageArgs, String actionStatus) {
+		if (type != NotificationType.REACTION || referenceId == null || sender == null) {
+			return false;
+		}
+
+		Optional<Notification> existingOpt = notificationRepository
+				.findFirstByRecipientIdAndTypeAndReferenceIdAndIsReadFalseOrderByCreatedAtDesc(recipient.getId(), type, referenceId);
+
+		if (existingOpt.isEmpty()) {
+			return false;
+		}
+
+		Notification existing = existingOpt.get();
+		String previousSenderId = existing.getSender() != null ? existing.getSender().getId() : null;
+		if (sender.getId().equals(previousSenderId)) {
+			// Cùng 1 người thả cảm xúc liên tục -> không tạo thêm thông báo mới
+			return true;
+		}
+
+		String previousSenderName = existing.getSender() != null ? existing.getSender().getFullname() : null;
+		int updatedActorsCount = Math.max(existing.getActorsCount(), 1) + 1;
+
+		existing.setActorsCount(updatedActorsCount);
+		existing.setSender(sender);
+		existing.setImageUrl(imageUrl);
+		existing.setMessageKey(messageKey);
+		existing.setMessageArgs(messageArgs);
+		existing.setActionStatus(actionStatus);
+		existing.setSeen(false);
+		existing.setMessage(buildAggregatedReactionMessage(sender.getFullname(), previousSenderName, updatedActorsCount, fallbackMessage));
+
+		notificationRepository.save(existing);
+		pushToFirebaseAndWebSocket(recipient, sender, existing);
+		return true;
+	}
+
+	private String buildAggregatedReactionMessage(String latestActorName, String previousActorName, int actorsCount, String fallbackMessage) {
+		if (latestActorName == null || latestActorName.isBlank()) {
+			return fallbackMessage;
+		}
+
+		if (actorsCount <= 1 || previousActorName == null || previousActorName.isBlank()) {
+			return latestActorName + " đã bày tỏ cảm xúc về bài viết của bạn.";
+		}
+
+		if (actorsCount == 2) {
+			return latestActorName + " và " + previousActorName + " đã bày tỏ cảm xúc về bài viết của bạn.";
+		}
+
+		return latestActorName + ", " + previousActorName + " và " + (actorsCount - 2)
+				+ " người khác đã bày tỏ cảm xúc về bài viết của bạn.";
 	}
 
 	private void pushToFirebaseAndWebSocket(User recipient, User sender, Notification notification) {
@@ -157,6 +183,7 @@ public class NotificationService {
 
 	@Transactional(readOnly = true)
 	public Page<NotificationResponse> getMyNotifications(String userId, Pageable pageable) {
+		// Giữ lịch sử thông báo đã phát sinh trước khi user tắt category.
 		return notificationRepository.findByRecipientIdOrderByUpdatedAtDescCreatedAtDesc(userId, pageable)
 				.map(this::toResponse);
 	}
@@ -183,6 +210,7 @@ public class NotificationService {
 	// [TASK-102] Đổi đếm unread thành unseen cho icon chuông
 	@Transactional(readOnly = true)
 	public long countUnseen(String userId) {
+		// Badge unseen phản ánh toàn bộ thông báo đang có trong DB.
 		return notificationRepository.countByRecipientIdAndIsSeenFalse(userId);
 	}
 
@@ -250,60 +278,16 @@ public class NotificationService {
 		};
 	}
 
-	private boolean shouldSkipCompletely(UserSettings settings, NotificationType type) {
-		return !isInAppEnabledForType(settings, type)
-				&& !isPushEnabledForType(settings, type)
-				&& !isEmailEnabledForType(settings, type);
-	}
-
-	private boolean isInAppEnabledForType(UserSettings settings, NotificationType type) {
-		if (!settings.isInAppEnabled()) {
-			return false;
-		}
-
+	private boolean isCategoryEnabled(UserSettings settings, NotificationType type) {
 		return switch (type) {
-			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment();
-			case REACTION -> settings.isInAppReaction();
-			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isInAppFriendRequest();
-			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isInAppBoxInvite();
-			case JOURNEY_INVITE -> settings.isInAppJourney();
-			case MOOD_MENTIONED -> settings.isInAppMention();
-			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage();
+			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
+			case REACTION -> settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
+			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
+			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
+			case JOURNEY_INVITE -> settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
+			case MOOD_MENTIONED -> settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
+			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
 			default -> true;
-		};
-	}
-
-	private boolean isPushEnabledForType(UserSettings settings, NotificationType type) {
-		if (!settings.isPushEnabled()) {
-			return false;
-		}
-
-		return switch (type) {
-			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isPushComment() && settings.isPushNewComment();
-			case REACTION -> settings.isPushReaction();
-			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isPushFriendRequestCategory() && settings.isPushFriendRequest();
-			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isPushBoxInvite();
-			case JOURNEY_INVITE -> settings.isPushJourney() && settings.isPushJourneyInvite();
-			case MOOD_MENTIONED -> settings.isPushMention();
-			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isPushMessage();
-			default -> true;
-		};
-	}
-
-	private boolean isEmailEnabledForType(UserSettings settings, NotificationType type) {
-		if (!settings.isEmailEnabled()) {
-			return false;
-		}
-
-		return switch (type) {
-			case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isEmailComment();
-			case REACTION -> settings.isEmailReaction();
-			case FRIEND_REQUEST, FRIEND_REQUEST_RECEIVED -> settings.isEmailFriendRequest();
-			case BOX_INVITE, BOX_INVITE_RECEIVED -> settings.isEmailBoxInvite();
-			case JOURNEY_INVITE -> settings.isEmailJourney();
-			case MOOD_MENTIONED -> settings.isEmailMention();
-			case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isEmailMessage();
-			default -> settings.isEmailUpdates();
 		};
 	}
 }

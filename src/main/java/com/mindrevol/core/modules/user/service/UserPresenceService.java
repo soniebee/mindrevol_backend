@@ -22,13 +22,11 @@ public class UserPresenceService {
         String key = ONLINE_USERS_KEY + userId;
         redisTemplate.opsForValue().set(key, LocalDateTime.now().toString());
         redisTemplate.expire(key, ONLINE_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        log.debug("User {} is ONLINE", userId);
     }
 
     public void disconnect(String userId) { // [UUID]
         String key = ONLINE_USERS_KEY + userId;
         redisTemplate.delete(key);
-        log.debug("User {} is OFFLINE", userId);
     }
 
     public boolean isUserOnline(String userId) { // [UUID]

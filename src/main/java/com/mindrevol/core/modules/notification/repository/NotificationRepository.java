@@ -23,6 +23,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     // [TASK-102] Đếm số thông báo CHƯA XEM (để hiển thị badge đỏ ở icon chuông)
     long countByRecipientIdAndIsSeenFalse(String userId);
 
+
     @Modifying
     @Query("UPDATE Notification n SET n.isRead = true, n.isSeen = true WHERE n.recipient.id = :userId")
     void markAllAsRead(@Param("userId") String userId);
