@@ -72,6 +72,12 @@ public class Checkin extends BaseEntity {
 
     @Column(name = "location_name")
     private String locationName;
+    
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
 
     @ElementCollection
     @CollectionTable(name = "checkin_tags", joinColumns = @JoinColumn(name = "checkin_id"))

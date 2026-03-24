@@ -125,6 +125,13 @@ public class User extends BaseEntity implements UserDetails {
 
     @Version
     private Long version;
+    
+    @Column(name = "current_streak")
+    @Builder.Default
+    private Integer currentStreak = 0;
+
+    @Column(name = "last_checkin_at")
+    private LocalDateTime lastCheckinAt;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

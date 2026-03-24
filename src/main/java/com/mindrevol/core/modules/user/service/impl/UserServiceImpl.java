@@ -17,6 +17,7 @@ import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.user.mapper.FriendshipMapper;
 import com.mindrevol.core.modules.user.repository.UserSettingsRepository;
 import com.mindrevol.core.modules.user.service.UserService;
+import com.mindrevol.core.modules.checkin.dto.response.CalendarRecapResponse;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.modules.user.dto.request.BlockUserDto;
@@ -297,12 +298,23 @@ public class UserServiceImpl implements UserService {
     private User getUserByEmail(String email) {
         return userRepository.findByEmail(email).orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
+    
+    @Override
+    public List<CalendarRecapResponse> getUserCalendarRecap(String userId, int year, int month) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User không tồn tại"));
+        return checkinRepository.getCalendarRecapInMonth(userId, year, month);
+    }
 
     private UserProfileResponse buildUserProfile(User targetUser, User viewer) {
         UserProfileResponse response = userMapper.toProfileResponse(targetUser);
         
         long friendCount = friendshipRepository.countByUserIdAndStatusAccepted(targetUser.getId());
         response.setFriendCount(friendCount); 
+        
+        long totalCheckins = checkinRepository.countByUserId(targetUser.getId());
+        response.setTotalCheckins(totalCheckins);
+        response.setCurrentStreak(targetUser.getCurrentStreak() != null ? targetUser.getCurrentStreak() : 0);
 
         if (viewer != null && viewer.getId().equals(targetUser.getId())) {
             response.setMe(true);
