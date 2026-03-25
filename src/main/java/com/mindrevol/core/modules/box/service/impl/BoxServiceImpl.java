@@ -6,6 +6,8 @@ import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateBoxRequest;
 import com.mindrevol.core.modules.box.dto.response.BoxDetailResponse;
 import com.mindrevol.core.modules.box.dto.response.BoxResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxInvitationResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxMemberResponse;
 import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.entity.BoxInvitation;
 import com.mindrevol.core.modules.box.entity.BoxMember;
@@ -17,14 +19,22 @@ import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.modules.box.repository.BoxRepository;
 import com.mindrevol.core.modules.box.service.BoxService;
+
+// Nhập thêm các thư viện cần thiết cho phần lấy Journey & Thành viên
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.journey.entity.Journey;
+import com.mindrevol.core.modules.journey.entity.JourneyInvitationStatus;
 import com.mindrevol.core.modules.journey.entity.JourneyStatus;
+import com.mindrevol.core.modules.journey.mapper.JourneyMapper;
+import com.mindrevol.core.modules.journey.repository.JourneyRepository;
+import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
+
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +53,12 @@ public class BoxServiceImpl implements BoxService {
     private final BoxInvitationRepository boxInvitationRepository;
     private final UserRepository userRepository;
     private final BoxMapper boxMapper;
+    
+    // Khai báo thêm để phục vụ hàm getBoxJourneys (Được lấy từ bản cũ)
+    private final JourneyRepository journeyRepository;
+    private final JourneyMapper journeyMapper;
+    private final CheckinRepository checkinRepository;
 
-    // 📢 Tiêm công cụ phát sự kiện vào đây
     private final ApplicationEventPublisher eventPublisher;
 
     // =========================================================================
@@ -161,11 +176,12 @@ public class BoxServiceImpl implements BoxService {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
 
+        // Tuỳ chọn logic: Nếu là Admin cuối cùng rời đi thì đổi chủ hoặc disband Box
         boxMemberRepository.delete(myMembership);
     }
 
     // =========================================================================
-    // PHẦN 2: QUẢN LÝ THÀNH VIÊN VÀ LỜI MỜI
+    // PHẦN 2: QUẢN LÝ LỜI MỜI VÀ QUYỀN HẠN
     // =========================================================================
 
     @Override
@@ -182,13 +198,11 @@ public class BoxServiceImpl implements BoxService {
         User invitee = userRepository.findById(inviteeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng được mời không tồn tại"));
 
-        boolean isInviteeAlreadyInBox = boxMemberRepository.findByBoxIdAndUserId(boxId, inviteeId).isPresent();
-        if (isInviteeAlreadyInBox || box.getOwner().getId().equals(inviteeId)) {
+        if (boxMemberRepository.existsByBoxIdAndUserId(boxId, inviteeId) || box.getOwner().getId().equals(inviteeId)) {
             throw new BadRequestException("Người này đã là thành viên của Box");
         }
 
-        boolean hasPendingInvite = boxInvitationRepository.existsByBoxIdAndInviteeIdAndStatus(boxId, inviteeId, "PENDING");
-        if (hasPendingInvite) {
+        if (boxInvitationRepository.existsByBoxIdAndInviteeIdAndStatus(boxId, inviteeId, "PENDING")) {
             throw new BadRequestException("Đã gửi lời mời đến người này rồi, đang chờ họ đồng ý");
         }
 
@@ -201,9 +215,8 @@ public class BoxServiceImpl implements BoxService {
 
         invitation = boxInvitationRepository.save(invitation);
 
-        // 📢 Phát sự kiện: Đã gửi lời mời
         eventPublisher.publishEvent(BoxInvitedEvent.builder()
-                .invitationId(String.valueOf(invitation.getId())) // 🔥 Đã ép kiểu Long sang String
+                .invitationId(String.valueOf(invitation.getId()))
                 .boxId(box.getId())
                 .boxName(box.getName())
                 .senderId(inviterId)
@@ -214,7 +227,6 @@ public class BoxServiceImpl implements BoxService {
     @Override
     @Transactional
     public void handleInvitation(String invitationId, boolean isAccepted, String userId) {
-        // 🔥 Đã ép kiểu String sang Long
         BoxInvitation invitation = boxInvitationRepository.findById(Long.valueOf(invitationId))
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lời mời này"));
 
@@ -233,10 +245,8 @@ public class BoxServiceImpl implements BoxService {
                     .role(BoxRole.MEMBER)
                     .build();
             boxMemberRepository.save(newMember);
-
             invitation.setStatus("ACCEPTED");
 
-            // 📢 Phát sự kiện: Người dùng đã đồng ý vào Box
             eventPublisher.publishEvent(BoxMemberJoinedEvent.builder()
                     .boxId(invitation.getBox().getId())
                     .boxName(invitation.getBox().getName())
@@ -294,26 +304,83 @@ public class BoxServiceImpl implements BoxService {
     @Override
     @Transactional
     public void transferOwnership(String boxId, String newOwnerId, String currentOwnerId) {
-        // 1. Tìm Box
         Box box = boxRepository.findById(boxId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
 
-        // 2. Kiểm tra xem người gọi có phải là Owner hiện tại không
         if (!box.getOwner().getId().equals(currentOwnerId)) {
             throw new BadRequestException("Chỉ chủ sở hữu hiện tại mới có quyền chuyển nhượng quyền quản lý");
         }
 
-        // 3. Kiểm tra xem User mới có tồn tại không
         User newOwner = userRepository.findById(newOwnerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng nhận chuyển nhượng không tồn tại"));
 
-        // 4. Kiểm tra xem User mới có đang là thành viên của Box không
         if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, newOwnerId)) {
             throw new BadRequestException("Người nhận chuyển nhượng phải là thành viên trong Box này");
         }
 
-        // 5. Tiến hành đổi chủ
         box.setOwner(newOwner);
         boxRepository.save(box);
+    }
+
+    // =========================================================================
+    // PHẦN 3: XỬ LÝ DỮ LIỆU HIỂN THỊ CÁC TAB BÊN TRONG BOX (PHỤC HỒI TỪ BẢN CŨ)
+    // =========================================================================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BoxInvitationResponse> getMyPendingInvitations(String userId) {
+        
+        // TRUYỀN THẲNG CHUỖI "PENDING" VÀO ĐÂY, BỎ ENUM ĐI
+        List<BoxInvitation> invitations = boxInvitationRepository.findAllByInviteeIdAndStatusOrderByCreatedAtDesc(
+                userId, 
+                "PENDING" 
+        );
+        
+        return invitations.stream().map(inv -> BoxInvitationResponse.builder()
+                .id(inv.getId()) // Nếu DTO của bạn yêu cầu id là String, hãy bọc bằng String.valueOf(inv.getId())
+                .boxId(inv.getBox().getId())
+                .boxName(inv.getBox().getName())
+                .boxAvatar(inv.getBox().getAvatar())
+                .inviterId(inv.getInviter().getId())
+                .inviterName(inv.getInviter().getFullname())
+                .inviterAvatar(inv.getInviter().getAvatarUrl())
+                .status(inv.getStatus()) // status đã là String rồi, nên không cần .name() nữa
+                .sentAt(inv.getCreatedAt())
+                .build()
+        ).collect(Collectors.toList());
+    }
+    
+    private void checkMembership(String boxId, String userId) {
+        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
+            throw new BadRequestException("Bạn không có quyền truy cập không gian này");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true) 
+    public Page<BoxMemberResponse> getBoxMembers(String boxId, String userId, Pageable pageable) {
+        checkMembership(boxId, userId);
+        return boxMemberRepository.findByBoxId(boxId, pageable)
+                .map(member -> BoxMemberResponse.builder().userId(member.getUser().getId()).fullname(member.getUser().getFullname()).avatarUrl(member.getUser().getAvatarUrl()).role(member.getRole()).joinedAt(member.getJoinedAt()).build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JourneyResponse> getBoxJourneys(String boxId, String userId, Pageable pageable) {
+        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
+            throw new BadRequestException("Bạn không có quyền truy cập không gian này");
+        }
+
+        return journeyRepository.findJourneysByBoxId(boxId, pageable)
+                .map(journey -> {
+                    JourneyResponse response = journeyMapper.toResponse(journey);
+                    // Lấy 31 ảnh preview như ở code bản cũ
+                    List<String> images = checkinRepository.findPreviewImagesByJourneyId(
+                            journey.getId(), 
+                            PageRequest.of(0, 31)
+                    );
+                    response.setPreviewImages(images);
+                    return response;
+                });
     }
 }

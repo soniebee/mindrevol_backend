@@ -57,7 +57,7 @@ public class FeedEventListener {
 
         // 2. Lấy thành viên trong hành trình (vì bài đăng thuộc hành trình)
         List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
-
+        
         // 3. Lấy danh sách bạn bè (nếu visibility là FRIENDS_ONLY)
         Set<String> friendIds = new HashSet<>();
         if (visibility == CheckinVisibility.FRIENDS_ONLY) {

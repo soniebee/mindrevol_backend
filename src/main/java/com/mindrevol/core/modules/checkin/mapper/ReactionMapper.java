@@ -13,7 +13,7 @@ public interface ReactionMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "userFullName", source = "user.fullname")
     @Mapping(target = "userAvatar", source = "user.avatarUrl")
-    @Mapping(target = "type", constant = "REACTION")
+    @Mapping(target = "type", constant = "REACTION") 
     @Mapping(target = "content", ignore = true) // <--- THÊM DÒNG NÀY (Reaction không có content)
     CheckinReactionDetailResponse toDetailResponse(CheckinReaction entity);
 
@@ -21,7 +21,7 @@ public interface ReactionMapper {
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "userFullName", source = "user.fullname")
     @Mapping(target = "userAvatar", source = "user.avatarUrl")
-    @Mapping(target = "type", constant = "COMMENT")
+    @Mapping(target = "type", constant = "COMMENT") 
     @Mapping(target = "content", source = "content")
     @Mapping(target = "emoji", ignore = true) // Comment không có emoji
     @Mapping(target = "mediaUrl", ignore = true)

@@ -1,16 +1,16 @@
 package com.mindrevol.core.modules.box.controller;
 
-// Các import dùng chung của dự án
 import com.mindrevol.core.common.dto.ApiResponse;
 import com.mindrevol.core.common.utils.SecurityUtils;
-
-// Các import của module Box
 import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.InviteMemberRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateMemberRoleRequest;
 import com.mindrevol.core.modules.box.dto.response.BoxDetailResponse;
 import com.mindrevol.core.modules.box.dto.response.BoxResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxInvitationResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxMemberResponse;
+import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.box.service.BoxService;
 
 import jakarta.validation.Valid;
@@ -21,37 +21,34 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/boxes")
 @RequiredArgsConstructor
 public class BoxController {
 
-    // Phải có dòng khai báo này thì các hàm bên dưới mới dùng được 'boxService'
     private final BoxService boxService;
 
     // 1. Tạo Box mới
     @PostMapping
     public ApiResponse<BoxDetailResponse> createBox(@Valid @RequestBody CreateBoxRequest request) {
-        String userId = SecurityUtils.getCurrentUserId(); // Tự động lấy ID từ token an toàn
-        return ApiResponse.success(boxService.createBox(request, userId));
+        return ApiResponse.success(boxService.createBox(request, SecurityUtils.getCurrentUserId()));
     }
 
-    // 2. Lấy danh sách Box
+    // 2. Lấy danh sách Box của tôi
     @GetMapping
     public ApiResponse<Page<BoxResponse>> getMyBoxes(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-
-        String userId = SecurityUtils.getCurrentUserId();
         Pageable pageable = PageRequest.of(page, size, Sort.by("lastActivityAt").descending());
-        return ApiResponse.success(boxService.getMyBoxes(userId, pageable));
+        return ApiResponse.success(boxService.getMyBoxes(SecurityUtils.getCurrentUserId(), pageable));
     }
 
     // 3. Lấy chi tiết Box
     @GetMapping("/{boxId}")
     public ApiResponse<BoxDetailResponse> getBoxDetail(@PathVariable String boxId) {
-        String userId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.success(boxService.getBoxDetail(boxId, userId));
+        return ApiResponse.success(boxService.getBoxDetail(boxId, SecurityUtils.getCurrentUserId()));
     }
 
     // 4. Cập nhật thông tin Box
@@ -59,24 +56,20 @@ public class BoxController {
     public ApiResponse<BoxDetailResponse> updateBox(
             @PathVariable String boxId,
             @RequestBody UpdateBoxRequest request) {
-
-        String userId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.success(boxService.updateBox(boxId, request, userId));
+        return ApiResponse.success(boxService.updateBox(boxId, request, SecurityUtils.getCurrentUserId()));
     }
 
     // 5. Xóa Box
     @DeleteMapping("/{boxId}")
     public ApiResponse<Void> deleteBox(@PathVariable String boxId) {
-        String userId = SecurityUtils.getCurrentUserId();
-        boxService.deleteBox(boxId, userId);
+        boxService.deleteBox(boxId, SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
     // 6. Rời khỏi Box
     @DeleteMapping("/{boxId}/leave")
     public ApiResponse<Void> leaveBox(@PathVariable String boxId) {
-        String userId = SecurityUtils.getCurrentUserId();
-        boxService.leaveBox(boxId, userId);
+        boxService.leaveBox(boxId, SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
@@ -85,9 +78,7 @@ public class BoxController {
     public ApiResponse<Void> inviteMember(
             @PathVariable String boxId,
             @Valid @RequestBody InviteMemberRequest request) {
-
-        String inviterId = SecurityUtils.getCurrentUserId();
-        boxService.inviteMember(boxId, request.getInviteeId(), inviterId);
+        boxService.inviteMember(boxId, request.getInviteeId(), SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
@@ -96,9 +87,7 @@ public class BoxController {
     public ApiResponse<Void> handleInvitation(
             @PathVariable String invitationId,
             @RequestParam boolean accept) {
-
-        String userId = SecurityUtils.getCurrentUserId();
-        boxService.handleInvitation(invitationId, accept, userId);
+        boxService.handleInvitation(invitationId, accept, SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
@@ -107,9 +96,7 @@ public class BoxController {
     public ApiResponse<Void> kickMember(
             @PathVariable String boxId,
             @PathVariable String memberId) {
-
-        String adminId = SecurityUtils.getCurrentUserId();
-        boxService.kickMember(boxId, memberId, adminId);
+        boxService.kickMember(boxId, memberId, SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
@@ -119,20 +106,46 @@ public class BoxController {
             @PathVariable String boxId,
             @PathVariable String memberId,
             @Valid @RequestBody UpdateMemberRoleRequest request) {
-
-        String adminId = SecurityUtils.getCurrentUserId();
-        boxService.updateMemberRole(boxId, memberId, request.getRole(), adminId);
+        boxService.updateMemberRole(boxId, memberId, request.getRole(), SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
     }
 
-    // 11. (MỚI THÊM) Chuyển nhượng Chủ Phòng
+    // 11. Chuyển nhượng Chủ Phòng
     @PutMapping("/{boxId}/transfer-ownership/{newOwnerId}")
     public ApiResponse<Void> transferOwnership(
             @PathVariable String boxId,
             @PathVariable String newOwnerId) {
-
-        String currentOwnerId = SecurityUtils.getCurrentUserId();
-        boxService.transferOwnership(boxId, newOwnerId, currentOwnerId);
+        boxService.transferOwnership(boxId, newOwnerId, SecurityUtils.getCurrentUserId());
         return ApiResponse.success(null);
+    }
+
+    // =========================================================================
+    // CÁC API PHỤC VỤ HIỂN THỊ DỮ LIỆU (ĐƯỢC PHỤC HỒI TỪ BẢN CŨ)
+    // =========================================================================
+
+    // 12. Lấy danh sách lời mời đang chờ của tôi
+    @GetMapping("/invitations/me")
+    public ApiResponse<List<BoxInvitationResponse>> getMyPendingInvitations() {
+        return ApiResponse.success(boxService.getMyPendingInvitations(SecurityUtils.getCurrentUserId()));
+    }
+
+    // 13. Lấy danh sách thành viên trong Box
+    @GetMapping("/{boxId}/members")
+    public ApiResponse<Page<BoxMemberResponse>> getBoxMembers(
+            @PathVariable String boxId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(boxService.getBoxMembers(boxId, SecurityUtils.getCurrentUserId(), pageable));
+    }
+
+    // 14. Lấy danh sách hành trình trong Box
+    @GetMapping("/{boxId}/journeys")
+    public ApiResponse<Page<JourneyResponse>> getBoxJourneys(
+            @PathVariable String boxId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(boxService.getBoxJourneys(boxId, SecurityUtils.getCurrentUserId(), pageable));
     }
 }
