@@ -3,8 +3,14 @@ package com.mindrevol.core.modules.box.service;
 import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateBoxRequest;
 import com.mindrevol.core.modules.box.dto.response.BoxDetailResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxInvitationResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxMemberResponse;
 import com.mindrevol.core.modules.box.dto.response.BoxResponse;
 import com.mindrevol.core.modules.box.entity.BoxRole;
+import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
+
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -41,4 +47,10 @@ public interface BoxService {
 
     // 11. Chuyển nhượng quyền sở hữu Box
     void transferOwnership(String boxId, String newOwnerId, String currentOwnerId);
+
+	List<BoxInvitationResponse> getMyPendingInvitations(String userId);
+
+	Page<BoxMemberResponse> getBoxMembers(String boxId, String userId, Pageable pageable);
+
+	Page<JourneyResponse> getBoxJourneys(String boxId, String userId, Pageable pageable);
 }

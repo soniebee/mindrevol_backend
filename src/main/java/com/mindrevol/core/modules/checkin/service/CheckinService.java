@@ -3,6 +3,7 @@ package com.mindrevol.core.modules.checkin.service;
 import com.mindrevol.core.modules.checkin.dto.request.CheckinRequest;
 import com.mindrevol.core.modules.checkin.dto.response.CheckinResponse;
 import com.mindrevol.core.modules.checkin.dto.response.CommentResponse;
+import com.mindrevol.core.modules.checkin.dto.response.MapMarkerResponse; // [THÊM MỚI]
 import com.mindrevol.core.modules.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,19 +15,25 @@ public interface CheckinService {
 
     CheckinResponse createCheckin(CheckinRequest request, User currentUser);
 
-    // [SỬA LẠI]: Thêm tham số String chapterId để đồng bộ với CheckinServiceImpl
-    Page<CheckinResponse> getJourneyFeed(String journeyId, String chapterId, Pageable pageable, User currentUser);
+    Page<CheckinResponse> getJourneyFeed(String journeyId, Pageable pageable, User currentUser);
 
     CommentResponse postComment(String checkinId, String content, User currentUser);
-
+    
     Page<CommentResponse> getComments(String checkinId, Pageable pageable);
 
     List<CheckinResponse> getUnifiedFeed(User currentUser, LocalDateTime cursor, int limit);
 
-    // [SỬA LẠI]: Thêm tham số String chapterId để đồng bộ với CheckinServiceImpl
-    List<CheckinResponse> getJourneyFeedByCursor(String journeyId, String chapterId, User currentUser, LocalDateTime cursor, int limit);
-
+    List<CheckinResponse> getJourneyFeedByCursor(String journeyId, User currentUser, LocalDateTime cursor, int limit);
+    
     CheckinResponse updateCheckin(String checkinId, String caption, User currentUser);
 
     void deleteCheckin(String checkinId, User currentUser);
+
+    // [THÊM MỚI]
+    List<MapMarkerResponse> getMapMarkersForJourney(String journeyId, User currentUser);
+    
+    // [THÊM MỚI]
+    List<MapMarkerResponse> getMapMarkersForBox(String boxId, User currentUser);
+    
+    List<MapMarkerResponse> getMyMapMarkers(User currentUser);
 }

@@ -88,7 +88,4 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     
     // NẾU BẠN KHÔNG DÙNG XÓA MỀM (hoặc đã có @Where(clause="deleted_at is null") ở entity) thì chỉ cần:
     long countByUserId(String userId);
-
-	Page<Checkin> findByJourneyIdAndChapterIdOrderByCreatedAtDesc(String journeyId, String chapterId,
-			Pageable pageable);
 }

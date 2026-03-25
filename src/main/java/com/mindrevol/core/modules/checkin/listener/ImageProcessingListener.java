@@ -25,7 +25,7 @@ public class ImageProcessingListener {
     private final CheckinRepository checkinRepository;
     private final FileStorageService fileStorageService;
 
-    @Async("imageTaskExecutor")
+    @Async("imageTaskExecutor") 
     @EventListener
     @Transactional
     public void handleImageProcessing(CheckinSuccessEvent event) {
@@ -34,7 +34,7 @@ public class ImageProcessingListener {
 
         try {
             Checkin checkin = checkinRepository.findById(event.getCheckinId()).orElse(null);
-
+            
             if (checkin == null || checkin.getImageUrl() == null || checkin.getImageUrl().isEmpty()) {
                 return;
             }
@@ -47,16 +47,16 @@ public class ImageProcessingListener {
                     .size(400, 400)
                     .outputQuality(0.8)
                     .toOutputStream(os);
-
+            
             byte[] thumbnailData = os.toByteArray();
             InputStream thumbnailStream = new ByteArrayInputStream(thumbnailData);
-
+            
             String thumbName = UUID.randomUUID() + "_thumb.jpg";
 
             String thumbnailUrl = fileStorageService.uploadStream(
-                    thumbnailStream,
-                    thumbName,
-                    "image/jpeg",
+                    thumbnailStream, 
+                    thumbName, 
+                    "image/jpeg", 
                     thumbnailData.length
             );
 

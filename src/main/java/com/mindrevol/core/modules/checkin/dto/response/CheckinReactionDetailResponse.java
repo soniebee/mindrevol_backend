@@ -11,11 +11,11 @@ public class CheckinReactionDetailResponse {
     private String userId; // UUID String
     private String userFullName;
     private String userAvatar;
-
+    
     // [THÊM MỚI] Để phân biệt Reaction hay Comment
     private String type;    // "REACTION" hoặc "COMMENT"
     private String content; // Nội dung comment (nếu có)
-
+    
     private String emoji;
     private String mediaUrl;
     private LocalDateTime createdAt;

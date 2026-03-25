@@ -102,7 +102,7 @@ public class ReactionServiceImpl implements ReactionService {
         List<CheckinReactionDetailResponse> all = new ArrayList<>();
         all.addAll(reactions);
         all.addAll(comments);
-
+        
         return all.stream()
                 .sorted(Comparator.comparing(CheckinReactionDetailResponse::getCreatedAt).reversed())
                 .limit(3)

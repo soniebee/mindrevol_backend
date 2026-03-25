@@ -3,7 +3,7 @@ package com.mindrevol.core.modules.checkin.dto.response;
 import com.mindrevol.core.modules.checkin.entity.ActivityType;
 import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
 import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
-import com.mindrevol.core.modules.checkin.entity.MediaType; // Import Enum
+import com.mindrevol.core.modules.checkin.entity.MediaType; 
 import com.mindrevol.core.modules.feed.dto.FeedItemResponse;
 import com.mindrevol.core.modules.feed.dto.FeedItemType;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
@@ -28,9 +28,9 @@ public class CheckinResponse implements FeedItemResponse {
     private String journeyName;
 
     // --- MEDIA ---
-    private String imageUrl;      // Nếu là Video thì đây là Thumbnail
-    private String videoUrl;      // [MỚI] Link video (nếu có)
-    private MediaType mediaType;  // [MỚI] IMAGE hoặc VIDEO
+    private String imageUrl;      
+    private String videoUrl;      
+    private MediaType mediaType;  
 
     // --- CONTENT ---
     private String caption;
@@ -49,10 +49,10 @@ public class CheckinResponse implements FeedItemResponse {
     // --- INTERACTION ---
     private int reactionCount;
     private int commentCount;
-    private List<CheckinReactionDetailResponse> latestReactions; // 3 người thả tim gần nhất
-
-    private String chapterId; 
-    private LocalDateTime expiresAt;
+    private List<CheckinReactionDetailResponse> latestReactions; 
+    
+    // [THÊM MỚI Ở ĐÂY] Cờ nhận biết bài viết này đã được user hiện tại lưu hay chưa
+    private boolean isSaved;
     
     @Override
     public FeedItemType getType() {
