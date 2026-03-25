@@ -47,7 +47,7 @@ public class FirebaseService {
 
             // Gửi
             String response = firebaseMessaging.send(messageBuilder.build());
-            log.info("Sent FCM message: {}", response);
+            log.debug("Sent FCM message: {}", response);
 
         } catch (Exception e) {
             log.error("Failed to send FCM message to token: {}", fcmToken, e);

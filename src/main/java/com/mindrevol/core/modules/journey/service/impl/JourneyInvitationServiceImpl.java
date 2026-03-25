@@ -91,14 +91,17 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
 
         invitationRepository.save(invitation);
         
-        notificationService.sendAndSaveNotification(
+        notificationService.sendAndSaveNotificationFull(
                 friend.getId(),
                 inviter.getId(),
                 NotificationType.JOURNEY_INVITE,
                 "Lời mời tham gia hành trình 🚀",
                 inviter.getFullname() + " mời bạn tham gia: " + journey.getName(),
                 journey.getId(), 
-                inviter.getAvatarUrl()
+                inviter.getAvatarUrl(),
+                "noti.journey.invite",
+                "[\"" + inviter.getFullname() + "\",\"" + journey.getName() + "\"]",
+                "PENDING"
         );
         log.info("User {} invited User {} to Journey {}", inviter.getId(), friendId, journeyId);
     }
@@ -151,6 +154,13 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
         invitation.setStatus(JourneyInvitationStatus.ACCEPTED);
         invitationRepository.save(invitation);
 
+        notificationService.updateActionStatusForNotification(
+                currentUserId,
+                NotificationType.JOURNEY_INVITE,
+                journey.getId(),
+                "ACCEPTED"
+        );
+
         cleanupPendingRequests(journey.getId(), currentUserId);
         eventPublisher.publishEvent(new JourneyJoinedEvent(journey, currentUser));
         
@@ -170,6 +180,13 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
 
         invitation.setStatus(JourneyInvitationStatus.REJECTED);
         invitationRepository.save(invitation);
+
+        notificationService.updateActionStatusForNotification(
+                currentUserId,
+                NotificationType.JOURNEY_INVITE,
+                invitation.getJourney().getId(),
+                "REJECTED"
+        );
     }
 
     @Override

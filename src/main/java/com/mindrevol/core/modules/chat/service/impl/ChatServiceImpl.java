@@ -11,6 +11,8 @@ import com.mindrevol.core.modules.chat.mapper.ChatMapper;
 import com.mindrevol.core.modules.chat.repository.ConversationRepository;
 import com.mindrevol.core.modules.chat.repository.MessageRepository;
 import com.mindrevol.core.modules.chat.service.ChatService;
+import com.mindrevol.core.modules.notification.entity.NotificationType;
+import com.mindrevol.core.modules.notification.service.NotificationService;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
@@ -38,6 +40,7 @@ public class ChatServiceImpl implements ChatService {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserBlockService userBlockService;
     private final UserPresenceService userPresenceService; 
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -91,6 +94,21 @@ public class ChatServiceImpl implements ChatService {
         // Frontend (cả người gửi và nhận) sẽ subscribe vào /topic/chat.{id}
         String destination = "/topic/chat." + conversation.getId();
         messagingTemplate.convertAndSend(destination, response);
+
+        // TASK-404: Đẩy thông báo DM qua Notification module để áp dụng settings + debounce Redis.
+        String notiMessage = message.getType() == MessageType.IMAGE
+                ? sender.getFullname() + " đã gửi cho bạn một hình ảnh"
+                : sender.getFullname() + ": " + message.getContent();
+
+        notificationService.sendAndSaveNotification(
+                receiverId,
+                senderId,
+                NotificationType.DM_NEW_MESSAGE,
+                "Tin nhắn mới",
+                notiMessage,
+                conversation.getId(),
+                sender.getAvatarUrl()
+        );
 
         return response;
     }

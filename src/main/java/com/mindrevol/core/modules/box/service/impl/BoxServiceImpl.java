@@ -20,6 +20,8 @@ import com.mindrevol.core.modules.box.service.BoxService;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.journey.entity.Journey;
 import com.mindrevol.core.modules.journey.entity.JourneyStatus;
+import com.mindrevol.core.modules.notification.entity.NotificationType;
+import com.mindrevol.core.modules.notification.service.NotificationService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ public class BoxServiceImpl implements BoxService {
     private final BoxInvitationRepository boxInvitationRepository;
     private final UserRepository userRepository;
     private final BoxMapper boxMapper;
+    private final NotificationService notificationService;
 
     // 📢 Tiêm công cụ phát sự kiện vào đây
     private final ApplicationEventPublisher eventPublisher;
@@ -235,6 +238,12 @@ public class BoxServiceImpl implements BoxService {
             boxMemberRepository.save(newMember);
 
             invitation.setStatus("ACCEPTED");
+            notificationService.updateActionStatusForNotification(
+                    userId,
+                    NotificationType.BOX_INVITE,
+                    String.valueOf(invitation.getId()),
+                    "ACCEPTED"
+            );
 
             // 📢 Phát sự kiện: Người dùng đã đồng ý vào Box
             eventPublisher.publishEvent(BoxMemberJoinedEvent.builder()
@@ -244,6 +253,12 @@ public class BoxServiceImpl implements BoxService {
                     .build());
         } else {
             invitation.setStatus("REJECTED");
+            notificationService.updateActionStatusForNotification(
+                    userId,
+                    NotificationType.BOX_INVITE,
+                    String.valueOf(invitation.getId()),
+                    "REJECTED"
+            );
         }
 
         boxInvitationRepository.save(invitation);

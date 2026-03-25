@@ -50,4 +50,15 @@ public class Notification extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private int actorsCount = 1;
+
+    // [TASK-103] Trạng thái xử lý cho thông báo có hành động (PENDING/ACCEPTED/REJECTED)
+    @Column(name = "action_status")
+    private String actionStatus;
+
+    // [TASK-301] Hỗ trợ i18n động từ backend
+    @Column(name = "message_key")
+    private String messageKey;
+
+    @Column(name = "message_args", columnDefinition = "TEXT")
+    private String messageArgs;
 }

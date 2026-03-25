@@ -53,14 +53,17 @@ public class FriendshipServiceImpl implements FriendshipService {
 
         Friendship saved = friendshipRepository.save(friendship);
 
-        notificationService.sendAndSaveNotification(
+        notificationService.sendAndSaveNotificationFull(
                 addressee.getId(),
                 requester.getId(),
                 NotificationType.FRIEND_REQUEST,
                 "Lời mời kết bạn mới 👋",
                 requester.getFullname() + " muốn kết bạn với bạn.",
                 saved.getId(), 
-                requester.getAvatarUrl()
+                requester.getAvatarUrl(),
+                "noti.friend.request",
+                "[\"" + requester.getFullname() + "\"]",
+                "PENDING"
         );
 
         return friendshipMapper.toResponse(saved, requesterId);
@@ -96,6 +99,13 @@ public class FriendshipServiceImpl implements FriendshipService {
                 accepter.getAvatarUrl()
         );
 
+        notificationService.updateActionStatusForNotification(
+                accepter.getId(),
+                NotificationType.FRIEND_REQUEST,
+                friendship.getId(),
+                "ACCEPTED"
+        );
+
         return friendshipMapper.toResponse(saved, userId);
     }
 
@@ -108,6 +118,14 @@ public class FriendshipServiceImpl implements FriendshipService {
         if (!friendship.getAddressee().getId().equals(userId)) {
             throw new BadRequestException("Bạn không có quyền từ chối lời mời này");
         }
+
+        notificationService.updateActionStatusForNotification(
+                friendship.getAddressee().getId(),
+                NotificationType.FRIEND_REQUEST,
+                friendship.getId(),
+                "REJECTED"
+        );
+
         friendshipRepository.delete(friendship);
     }
 
