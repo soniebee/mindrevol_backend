@@ -20,4 +20,3 @@ public class TwoFactorLoginVerifyRequest {
 
     private Boolean rememberDevice;
 }
-

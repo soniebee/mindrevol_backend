@@ -16,4 +16,3 @@ public class TwoFactorGenerateBackupCodesRequest {
     private String otpCode;
 }
 
-

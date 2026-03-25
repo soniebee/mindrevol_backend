@@ -16,4 +16,3 @@ public class TwoFactorEnableRequest {
     private String otpCode;
 }
 
-

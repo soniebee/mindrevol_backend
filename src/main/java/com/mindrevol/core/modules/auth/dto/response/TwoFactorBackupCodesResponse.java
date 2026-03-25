@@ -19,4 +19,3 @@ public class TwoFactorBackupCodesResponse {
     private List<String> backupCodes;
 }
 
-

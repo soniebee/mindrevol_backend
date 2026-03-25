@@ -199,4 +199,3 @@ public class TwoFactorService {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }
-

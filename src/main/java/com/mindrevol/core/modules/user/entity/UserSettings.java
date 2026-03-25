@@ -60,4 +60,19 @@ public class UserSettings extends BaseEntity {
 
     @Column(name = "two_factor_enabled_at")
     private LocalDateTime twoFactorEnabledAt;
+
+    // --- NEW FIELDS FOR ENHANCED 2FA ---
+
+    @Column(name = "two_factor_method", length = 50)
+    private String twoFactorMethod; // "TOTP" or "EMAIL"
+
+    @Column(name = "two_factor_email", length = 255)
+    private String twoFactorEmail; // Email for 2FA code delivery
+
+    @Column(name = "two_factor_email_verification_token", length = 255)
+    private String twoFactorEmailVerificationToken;
+
+    @Column(name = "two_factor_email_verified")
+    @Builder.Default
+    private Boolean twoFactorEmailVerified = false;
 }

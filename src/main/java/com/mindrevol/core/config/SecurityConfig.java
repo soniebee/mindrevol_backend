@@ -96,6 +96,19 @@ public class SecurityConfig {
                         "/api/v1/auth/reset-password"
                 ).permitAll()
 
+                // 1.1 PUBLIC ENDPOINTS - OTP login send code
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/v1/auth/otp/send"
+                ).permitAll()
+
+                // 1.2 PUBLIC ENDPOINTS - 2FA verify step (no JWT yet)
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/v1/auth/2fa/verify",
+                        "/api/v1/auth/login/2fa/verify"
+                ).permitAll()
+
                 // 2. PUBLIC ENDPOINTS - Others
                 .requestMatchers(
                         "/uploads/**",

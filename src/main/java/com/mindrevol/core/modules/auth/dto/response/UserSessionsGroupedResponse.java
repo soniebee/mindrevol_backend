@@ -11,4 +11,3 @@ public class UserSessionsGroupedResponse {
     private UserSessionResponse currentSession;
     private List<UserSessionResponse> otherSessions;
 }
-

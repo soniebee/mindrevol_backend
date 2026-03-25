@@ -10,4 +10,3 @@ public class TwoFactorDisableRequest {
     private String otpCode;
     private String backupCode;
 }
-
