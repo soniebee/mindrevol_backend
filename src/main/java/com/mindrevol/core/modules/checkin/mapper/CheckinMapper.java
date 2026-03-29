@@ -15,14 +15,14 @@ public interface CheckinMapper {
     @Mapping(target = "user", source = "user") // MapStruct sẽ dùng UserMapper để chuyển User entity -> UserSummaryResponse
     @Mapping(target = "journeyId", source = "journey.id")
     @Mapping(target = "journeyName", source = "journey.name")
-
+    
     // Stats calculation
     @Mapping(target = "commentCount", expression = "java((int) (checkin.getComments() != null ? checkin.getComments().size() : 0))")
     @Mapping(target = "reactionCount", expression = "java((int) (checkin.getReactions() != null ? checkin.getReactions().size() : 0))")
-
+    
     // Ignore field này vì sẽ được enrich sau trong Service
     @Mapping(target = "latestReactions", ignore = true)
-
+    
     // Các trường mediaType, videoUrl, imageFileId sẽ tự động map vì trùng tên
     CheckinResponse toResponse(Checkin checkin);
 

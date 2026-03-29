@@ -1,6 +1,9 @@
 package com.mindrevol.core.modules.box.repository;
 
+import com.mindrevol.core.modules.journey.entity.JourneyInvitationStatus;
 import com.mindrevol.core.modules.box.entity.BoxInvitation;
+
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,5 +19,6 @@ public interface BoxInvitationRepository extends JpaRepository<BoxInvitation, Lo
     // 🔥 Đã đổi RecipientId thành InviteeId (Dùng cho hàm inviteMember ở Service)
     boolean existsByBoxIdAndInviteeIdAndStatus(String boxId, String inviteeId, String status);
 
-    // Nếu trong file của bạn có hàm nào chứa chữ Sender thì đổi thành Inviter luôn nhé!
+    @EntityGraph(attributePaths = {"box", "inviter"})
+    List<BoxInvitation> findAllByInviteeIdAndStatusOrderByCreatedAtDesc(String inviteeId, String status);
 }

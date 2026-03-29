@@ -13,5 +13,8 @@ public class NotificationSettingsResponse {
     private boolean friendRequestEnabled;
     private boolean boxInviteEnabled;
     private boolean mentionEnabled;
+    // Bổ sung DND cho FE
+    private Boolean dndEnabled;
+    private Integer dndStartHour;
+    private Integer dndEndHour;
 }
-
