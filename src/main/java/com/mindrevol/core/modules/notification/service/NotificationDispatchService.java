@@ -1,5 +1,8 @@
 package com.mindrevol.core.modules.notification.service;
 
+import com.mindrevol.core.common.service.AsyncTaskProducer;
+import com.mindrevol.core.modules.notification.dto.PushNotificationTask;
+import com.mindrevol.core.modules.notification.dto.WebSocketNotificationTask;
 import com.mindrevol.core.modules.notification.dto.response.NotificationResponse;
 import com.mindrevol.core.modules.notification.entity.Notification;
 import com.mindrevol.core.modules.notification.entity.NotificationType;
@@ -9,8 +12,6 @@ import com.mindrevol.core.modules.user.repository.UserSettingsRepository;
 import com.mindrevol.core.modules.user.service.UserPresenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
@@ -23,13 +24,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class NotificationDispatchService {
 
-    private final FirebaseService firebaseService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final AsyncTaskProducer asyncTaskProducer;
     // BỔ SUNG: Tiêm repository để lấy cài đặt người dùng
     private final UserSettingsRepository userSettingsRepository;
     private final UserPresenceService userPresenceService;
 
-    @Async("taskExecutor")
     public void dispatchPush(User recipient, User sender, Notification notification) {
         if (recipient.getFcmToken() == null || recipient.getFcmToken().isBlank()) {
             return;
@@ -66,22 +65,27 @@ public class NotificationDispatchService {
         if (notification.getMessageKey() != null) dataPayload.put("messageKey", notification.getMessageKey());
         if (notification.getMessageArgs() != null) dataPayload.put("messageArgs", notification.getMessageArgs());
 
-        firebaseService.sendNotification(
-                recipient.getFcmToken(),
-                notification.getTitle(),
-                notification.getMessage(),
-                dataPayload
-        );
+        asyncTaskProducer.submitPushNotificationTask(PushNotificationTask.builder()
+                .recipientId(recipient.getId())
+                .fcmToken(recipient.getFcmToken())
+                .title(notification.getTitle())
+                .message(notification.getMessage())
+                .dataPayload(dataPayload)
+                .retryCount(0)
+                .build());
     }
 
-    @Async("taskExecutor")
     public void dispatchWebSocket(String recipientId, NotificationResponse response) {
         UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
         if (settings != null && !isCategoryTypeAllowed(settings, response.getType())) {
             return;
         }
 
-        messagingTemplate.convertAndSendToUser(recipientId, "/queue/notifications", response);
+        asyncTaskProducer.submitWebSocketNotificationTask(WebSocketNotificationTask.builder()
+                .recipientId(recipientId)
+                .response(response)
+                .retryCount(0)
+                .build());
     }
 
     // --- HÀM HELPER CHO TASK 201 & 202 ---

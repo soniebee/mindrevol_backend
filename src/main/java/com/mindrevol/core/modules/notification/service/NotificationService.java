@@ -47,6 +47,14 @@ public class NotificationService {
 											String title, String message, String referenceId, String imageUrl,
 											String messageKey, String messageArgs, String actionStatus) {
 
+		User recipient = userRepository.findById(recipientId)
+				.orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
+
+		UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
+		if (settings != null && !isCategoryEnabled(settings, type)) {
+			return;
+		}
+
 		if (type == NotificationType.DM_NEW_MESSAGE || type == NotificationType.BOXCHAT_NEW_MESSAGE) {
 			String safeSender = senderId == null ? "system" : senderId;
 			String safeReference = referenceId == null ? "none" : referenceId;
@@ -69,13 +77,6 @@ public class NotificationService {
 			redisTemplate.opsForValue().set(throttleKey, "1", 30, TimeUnit.SECONDS);
 		}
 
-		User recipient = userRepository.findById(recipientId)
-				.orElseThrow(() -> new ResourceNotFoundException("Recipient not found"));
-
-		UserSettings settings = userSettingsRepository.findByUserId(recipientId).orElse(null);
-		if (settings != null && !isCategoryEnabled(settings, type)) {
-			return;
-		}
 
 		User sender = null;
 		if (senderId != null) {

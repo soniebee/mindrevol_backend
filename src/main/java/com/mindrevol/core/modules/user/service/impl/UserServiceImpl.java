@@ -226,12 +226,14 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserSettings getNotificationSettings(String userId) {
-        return userSettingsRepository.findByUserId(userId)
+        UserSettings settings = userSettingsRepository.findByUserId(userId)
                 .orElseGet(() -> {
                     User user = getUserById(userId);
-                    UserSettings settings = UserSettings.builder().user(user).build();
-                    return userSettingsRepository.save(settings);
+                    return UserSettings.builder().user(user).build();
                 });
+
+        normalizeSimpleCategorySettings(settings);
+        return userSettingsRepository.save(settings);
     }
 
     @Override
@@ -350,6 +352,8 @@ public class UserServiceImpl implements UserService {
             settings.setDndEndHour(request.getDndEndHour());
         }
 
+        normalizeSimpleCategorySettings(settings);
+
         return userSettingsRepository.save(settings);
     }
 
@@ -365,6 +369,51 @@ public class UserServiceImpl implements UserService {
         if (hour < 0 || hour > 23) {
             throw new BadRequestException(fieldName + " must be between 0 and 23");
         }
+    }
+
+    private void normalizeSimpleCategorySettings(UserSettings settings) {
+        boolean commentEnabled = settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
+        boolean reactionEnabled = settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
+        boolean messageEnabled = settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
+        boolean journeyEnabled = settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
+        boolean friendEnabled = settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
+        boolean boxInviteEnabled = settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
+        boolean mentionEnabled = settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
+
+        settings.setInAppEnabled(true);
+        settings.setPushEnabled(true);
+        settings.setEmailEnabled(true);
+
+        settings.setInAppComment(commentEnabled);
+        settings.setPushComment(commentEnabled);
+        settings.setPushNewComment(commentEnabled);
+        settings.setEmailComment(commentEnabled);
+
+        settings.setInAppReaction(reactionEnabled);
+        settings.setPushReaction(reactionEnabled);
+        settings.setEmailReaction(reactionEnabled);
+
+        settings.setInAppMessage(messageEnabled);
+        settings.setPushMessage(messageEnabled);
+        settings.setEmailMessage(messageEnabled);
+
+        settings.setInAppJourney(journeyEnabled);
+        settings.setPushJourney(journeyEnabled);
+        settings.setPushJourneyInvite(journeyEnabled);
+        settings.setEmailJourney(journeyEnabled);
+
+        settings.setInAppFriendRequest(friendEnabled);
+        settings.setPushFriendRequest(friendEnabled);
+        settings.setPushFriendRequestCategory(friendEnabled);
+        settings.setEmailFriendRequest(friendEnabled);
+
+        settings.setInAppBoxInvite(boxInviteEnabled);
+        settings.setPushBoxInvite(boxInviteEnabled);
+        settings.setEmailBoxInvite(boxInviteEnabled);
+
+        settings.setInAppMention(mentionEnabled);
+        settings.setPushMention(mentionEnabled);
+        settings.setEmailMention(mentionEnabled);
     }
 
     @Override
