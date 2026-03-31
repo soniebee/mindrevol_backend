@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.checkin.dto.request;
 
+import com.mindrevol.core.modules.checkin.dto.request.CheckinRequest;
 import com.mindrevol.core.modules.checkin.entity.ActivityType;
 import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
 import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
@@ -11,7 +12,7 @@ import java.util.List;
 
 @Data
 public class CheckinRequest {
-    @NotNull(message = "Hành trình là bắt buộc")
+    // [ĐÃ SỬA] Bỏ @NotNull để Frontend có thể không gửi journeyId (Lưu trữ cá nhân)
     private String journeyId;
 
     @NotNull(message = "Ảnh check-in là bắt buộc")

@@ -42,6 +42,14 @@ public class CheckinController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    // [THÊM MỚI] API lấy danh sách bài viết Lưu trữ cá nhân
+    @GetMapping("/me/archived")
+    public ResponseEntity<ApiResponse<Page<CheckinResponse>>> getArchivedCheckins(Pageable pageable) {
+        String userId = SecurityUtils.getCurrentUserId();
+        User currentUser = userService.getUserById(userId);
+        return ResponseEntity.ok(ApiResponse.success(checkinService.getArchivedCheckins(currentUser, pageable)));
+    }
+
     @GetMapping("/unified")
     public ResponseEntity<ApiResponse<List<CheckinResponse>>> getUnifiedFeed(
             @RequestParam(required = false) LocalDateTime cursor,
@@ -94,17 +102,16 @@ public class CheckinController {
     }
 
     // --- ACTIONS ---
-
     @PutMapping("/{checkinId}")
     public ResponseEntity<ApiResponse<CheckinResponse>> updateCheckin(
             @PathVariable String checkinId,
-            @RequestBody UpdateCheckinRequest request) {
+            @RequestBody UpdateCheckinRequest request) { // [ĐÃ SỬA]
         
         String userId = SecurityUtils.getCurrentUserId();
         User currentUser = userService.getUserById(userId);
         
         return ResponseEntity.ok(ApiResponse.success(
-            checkinService.updateCheckin(checkinId, request.getCaption(), currentUser)
+            checkinService.updateCheckin(checkinId, request, currentUser)
         ));
     }
 

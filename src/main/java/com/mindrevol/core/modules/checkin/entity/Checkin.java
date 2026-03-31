@@ -13,9 +13,6 @@ import java.util.List;
 
 @Entity
 @Table(name = "checkins", 
-    uniqueConstraints = {
-        @UniqueConstraint(name = "uk_checkin_user_journey_date", columnNames = {"user_id", "journey_id", "checkin_date"})
-    },
     indexes = {
         @Index(name = "idx_checkin_journey", columnList = "journey_id"),
         @Index(name = "idx_checkin_user", columnList = "user_id")

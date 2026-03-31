@@ -21,4 +21,7 @@ public interface BoxInvitationRepository extends JpaRepository<BoxInvitation, Lo
 
     @EntityGraph(attributePaths = {"box", "inviter"})
     List<BoxInvitation> findAllByInviteeIdAndStatusOrderByCreatedAtDesc(String inviteeId, String status);
+    
+ // Lấy một lời mời đang chờ xử lý
+    Optional<BoxInvitation> findByBoxIdAndInviteeIdAndStatus(String boxId, String inviteeId, String string);
 }

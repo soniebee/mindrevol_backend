@@ -19,11 +19,11 @@ import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.modules.box.repository.BoxRepository;
 import com.mindrevol.core.modules.box.service.BoxService;
+import com.mindrevol.core.modules.box.event.BoxMemberInvitedEvent;
 
 // Nhập thêm các thư viện cần thiết cho phần lấy Journey & Thành viên
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.journey.entity.Journey;
-import com.mindrevol.core.modules.journey.entity.JourneyInvitationStatus;
 import com.mindrevol.core.modules.journey.entity.JourneyStatus;
 import com.mindrevol.core.modules.journey.mapper.JourneyMapper;
 import com.mindrevol.core.modules.journey.repository.JourneyRepository;
@@ -198,6 +198,10 @@ public class BoxServiceImpl implements BoxService {
         User invitee = userRepository.findById(inviteeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng được mời không tồn tại"));
 
+        // [THÊM DÒNG NÀY] Lấy Inviter thật từ DB thay vì dùng Reference proxy
+        User inviter = userRepository.findById(inviterId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người mời không tồn tại"));
+
         if (boxMemberRepository.existsByBoxIdAndUserId(boxId, inviteeId) || box.getOwner().getId().equals(inviteeId)) {
             throw new BadRequestException("Người này đã là thành viên của Box");
         }
@@ -206,22 +210,22 @@ public class BoxServiceImpl implements BoxService {
             throw new BadRequestException("Đã gửi lời mời đến người này rồi, đang chờ họ đồng ý");
         }
 
+        // [SỬA LẠI ĐOẠN NÀY] Dùng thẳng đối tượng inviter và invitee đã lấy ở trên
         BoxInvitation invitation = BoxInvitation.builder()
                 .box(box)
-                .inviter(userRepository.getReferenceById(inviterId))
-                .invitee(userRepository.getReferenceById(inviteeId))
+                .inviter(inviter) 
+                .invitee(invitee)
                 .status("PENDING")
                 .build();
 
         invitation = boxInvitationRepository.save(invitation);
 
-        eventPublisher.publishEvent(BoxInvitedEvent.builder()
-                .invitationId(String.valueOf(invitation.getId()))
-                .boxId(box.getId())
-                .boxName(box.getName())
-                .senderId(inviterId)
-                .recipientId(inviteeId)
-                .build());
+        // Bắn Event có chứa cục Entity thật, đầy đủ dữ liệu Name, Token
+        eventPublisher.publishEvent(new BoxMemberInvitedEvent(
+                box, 
+                inviter, 
+                invitee
+        ));
     }
 
     @Override
