@@ -19,13 +19,13 @@ public class ChatSocketController {
      */
     @MessageMapping("/chat/typing")
     public void handleTypingEvent(@Payload TypingEvent event) {
-        // Forward ngay lập tức cho Client B (receiverId)
-        // Client B sẽ subscribe: /user/queue/typing
-        
-        messagingTemplate.convertAndSendToUser(
-            String.valueOf(event.getReceiverId()),
-            "/queue/typing",
-            event
-        );
-    }
+        // [THÊM BẢO VỆ] Tránh lỗi NullPointerException khi chat Box (nhóm) không có receiverId cụ thể
+        if (event.getReceiverId() != null && !event.getReceiverId().isEmpty() && !event.getReceiverId().equals("null")) {
+            messagingTemplate.convertAndSendToUser(
+                event.getReceiverId(),
+                "/queue/typing",
+                event
+            );
+        }
+}
 }

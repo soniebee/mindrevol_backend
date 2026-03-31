@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.box.service.impl;
 
+import com.mindrevol.core.modules.chat.service.ChatService;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
@@ -58,6 +59,7 @@ public class BoxServiceImpl implements BoxService {
     private final JourneyRepository journeyRepository;
     private final JourneyMapper journeyMapper;
     private final CheckinRepository checkinRepository;
+    private final ChatService chatService;
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -83,6 +85,8 @@ public class BoxServiceImpl implements BoxService {
                 .build();
         boxMemberRepository.save(member);
 
+        chatService.createBoxConversation(box.getId(), box.getName(), userId);
+        
         return boxMapper.toDetailResponse(box, 1, BoxRole.ADMIN.name());
     }
 

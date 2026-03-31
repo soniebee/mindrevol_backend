@@ -22,4 +22,6 @@ public class SendMessageRequest {
     private String clientSideId;
     
     private String conversationId;
+    
+    private String replyToMsgId;
 }

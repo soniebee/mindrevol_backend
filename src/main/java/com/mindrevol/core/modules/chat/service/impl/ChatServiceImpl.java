@@ -84,6 +84,7 @@ public class ChatServiceImpl implements ChatService {
                 .type(request.getType() != null ? request.getType() : MessageType.TEXT)
                 .metadata(request.getMetadata())
                 .clientSideId(request.getClientSideId())
+                .replyToMsgId(request.getReplyToMsgId())
                 .deliveryStatus(MessageDeliveryStatus.SENT)
                 .build();
 
