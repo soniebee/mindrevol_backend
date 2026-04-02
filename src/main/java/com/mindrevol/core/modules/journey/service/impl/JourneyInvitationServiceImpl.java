@@ -95,7 +95,7 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
                 friend.getId(),
                 inviter.getId(),
                 NotificationType.JOURNEY_INVITE,
-                "Lời mời tham gia hành trình 🚀",
+                "Lời mời tham gia hành trình: " + journey.getName(),
                 inviter.getFullname() + " mời bạn tham gia: " + journey.getName(),
                 journey.getId(), 
                 inviter.getAvatarUrl(),

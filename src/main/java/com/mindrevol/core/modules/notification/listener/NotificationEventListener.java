@@ -4,6 +4,10 @@ import com.mindrevol.core.common.event.CheckinSuccessEvent;
 import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberAddedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberRemovedEvent;
+import com.mindrevol.core.modules.box.event.BoxRoleUpdatedEvent;
+import com.mindrevol.core.modules.box.repository.BoxRepository;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
 import com.mindrevol.core.modules.checkin.event.CheckinReactedEvent;
 import com.mindrevol.core.modules.checkin.event.CommentPostedEvent;
@@ -42,6 +46,7 @@ public class NotificationEventListener {
 
     private final NotificationService notificationService;
     private final CheckinRepository checkinRepository;
+    private final BoxRepository boxRepository;
     private final JourneyParticipantRepository participantRepository;
     private final MoodRepository moodRepository;
     private final UserRepository userRepository;
@@ -136,7 +141,7 @@ public class NotificationEventListener {
     }
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleBoxInvited(BoxInvitedEvent event) {
         User inviter = userRepository.findById(event.getSenderId()).orElse(null);
         User invitee = userRepository.findById(event.getRecipientId()).orElse(null);
@@ -148,7 +153,7 @@ public class NotificationEventListener {
                 invitee.getId(),
                 inviter.getId(),
                 NotificationType.BOX_INVITE,
-                "Loi moi Khong gian",
+                "Lời mời tham gia Box: " + event.getBoxName(),
                 inviter.getFullname() + " đã mời bạn tham gia vào " + event.getBoxName(),
                 event.getInvitationId(),
                 inviter.getAvatarUrl(),
@@ -239,6 +244,81 @@ public class NotificationEventListener {
     }
 
 
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxMemberJoined(BoxMemberJoinedEvent event) {
+        Box box = boxRepository.findById(event.getBoxId()).orElse(null);
+        User joinedUser = userRepository.findById(event.getJoinedUserId()).orElse(null);
+        if (box == null || joinedUser == null) {
+            return;
+        }
+
+        // Gửi thông báo cho chủ Box
+        notificationService.sendAndSaveNotificationFull(
+                box.getOwner().getId(),
+                joinedUser.getId(),
+                NotificationType.BOX_MEMBER_JOINED,
+                "Thành viên mới gia nhập",
+                joinedUser.getFullname() + " đã chấp nhận lời mời và gia nhập không gian " + box.getName(),
+                box.getId(),
+                joinedUser.getAvatarUrl(),
+                "noti.box.member.joined",
+                "[\"" + joinedUser.getFullname() + "\",\"" + box.getName() + "\"]",
+                null
+        );
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxMemberRemoved(BoxMemberRemovedEvent event) {
+        User removedUser = userRepository.findById(event.getRemovedUserId()).orElse(null);
+        User admin = userRepository.findById(event.getAdminId()).orElse(null);
+        if (removedUser == null || admin == null) {
+            return;
+        }
+
+        // Gửi thông báo cho người bị đuổi ra
+        notificationService.sendAndSaveNotificationFull(
+                removedUser.getId(),
+                admin.getId(),
+                NotificationType.BOX_MEMBER_REMOVED,
+                "Bạn bị đuổi khỏi không gian",
+                admin.getFullname() + " đã đuổi bạn khỏi không gian " + event.getBoxName(),
+                event.getBoxId(),
+                admin.getAvatarUrl(),
+                "noti.box.member.removed",
+                "[\"" + admin.getFullname() + "\",\"" + event.getBoxName() + "\"]",
+                null
+        );
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxRoleUpdated(BoxRoleUpdatedEvent event) {
+        User member = userRepository.findById(event.getMemberId()).orElse(null);
+        User admin = userRepository.findById(event.getAdminId()).orElse(null);
+        if (member == null || admin == null) {
+            return;
+        }
+
+        String roleChangeMessage = String.format("Vai trò của bạn đã được thay đổi từ %s thành %s",
+                event.getOldRole().name(), event.getNewRole().name());
+
+        // Gửi thông báo cho thành viên bị thay đổi vai trò
+        notificationService.sendAndSaveNotificationFull(
+                member.getId(),
+                admin.getId(),
+                NotificationType.BOX_ROLE_UPDATED,
+                "Vai trò thay đổi",
+                roleChangeMessage,
+                event.getBoxId(),
+                admin.getAvatarUrl(),
+                "noti.box.role.updated",
+                "[\"" + event.getOldRole().name() + "\",\"" + event.getNewRole().name() + "\",\"" + event.getBoxName() + "\"]",
+                null
+        );
+    }
+
     // --- 6. XỬ LÝ NHẮC TÊN TRONG BÌNH LUẬN ---
     private void notifyMentions(CommentPostedEvent event, Checkin checkin, User commenter) {
         Matcher matcher = MENTION_PATTERN.matcher(event.getContent());
@@ -257,7 +337,7 @@ public class NotificationEventListener {
                 notificationService.sendAndSaveNotificationFull(
                         mentionedUser.getId(),
                         commenter.getId(),
-                        NotificationType.MOOD_MENTIONED,
+                        NotificationType.COMMENT_MENTIONED,
                         "Bạn được nhắc đến",
                         commenter.getFullname() + " đã nhắc bạn trong một bình luận",
                         checkin.getId(),

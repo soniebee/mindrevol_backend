@@ -15,6 +15,8 @@ import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.entity.BoxRole;
 import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberRemovedEvent;
+import com.mindrevol.core.modules.box.event.BoxRoleUpdatedEvent;
 import com.mindrevol.core.modules.box.mapper.BoxMapper;
 import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
@@ -286,6 +288,14 @@ public class BoxServiceImpl implements BoxService {
                 .orElseThrow(() -> new ResourceNotFoundException("Thành viên này không có trong Box"));
 
         boxMemberRepository.delete(memberToKick);
+
+        // BỔ SUNG SPRINT 2: Phát sự kiện khi thành viên bị đuổi ra
+        eventPublisher.publishEvent(BoxMemberRemovedEvent.builder()
+                .boxId(box.getId())
+                .boxName(box.getName())
+                .removedUserId(memberId)
+                .adminId(adminId)
+                .build());
     }
 
     @Override
@@ -301,8 +311,19 @@ public class BoxServiceImpl implements BoxService {
         BoxMember member = boxMemberRepository.findByBoxIdAndUserId(boxId, memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Thành viên này không có trong Box"));
 
+        BoxRole oldRole = member.getRole();
         member.setRole(newRole);
         boxMemberRepository.save(member);
+
+        // BỔ SUNG SPRINT 2: Phát sự kiện khi vai trò thành viên bị thay đổi
+        eventPublisher.publishEvent(BoxRoleUpdatedEvent.builder()
+                .boxId(box.getId())
+                .boxName(box.getName())
+                .memberId(memberId)
+                .oldRole(oldRole)
+                .newRole(newRole)
+                .adminId(adminId)
+                .build());
     }
 
     @Override
