@@ -9,11 +9,13 @@ import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import com.mindrevol.core.modules.user.repository.UserSettingsRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.context.MessageSource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -33,6 +36,8 @@ public class NotificationService {
 	private final UserSettingsRepository userSettingsRepository;
 	private final RedisTemplate<String, Object> redisTemplate;
 	private final NotificationDispatchService notificationDispatchService;
+	private final MessageSource messageSource;
+	private final ObjectMapper objectMapper;
 
 	@Async
 	@Transactional
@@ -83,7 +88,10 @@ public class NotificationService {
 			sender = userRepository.findById(senderId).orElse(null);
 		}
 
-		if (tryAggregateReactionNotification(recipient, sender, type, referenceId, imageUrl, message, messageKey, messageArgs, actionStatus)) {
+		String localizedMessage = resolveMessage(messageKey, messageArgs, message);
+		String localizedTitle = resolveTitle(title, messageKey);
+
+		if (tryAggregateReactionNotification(recipient, sender, type, referenceId, imageUrl, localizedMessage, messageKey, messageArgs, actionStatus)) {
 			return;
 		}
 
@@ -91,8 +99,8 @@ public class NotificationService {
 				.recipient(recipient)
 				.sender(sender)
 				.type(type)
-				.title(title)
-				.message(message)
+				.title(localizedTitle)
+				.message(localizedMessage)
 				.referenceId(referenceId)
 				.imageUrl(imageUrl)
 				.isRead(false)
@@ -130,6 +138,8 @@ public class NotificationService {
 
 		String previousSenderName = existing.getSender() != null ? existing.getSender().getFullname() : null;
 		int updatedActorsCount = Math.max(existing.getActorsCount(), 1) + 1;
+		String resolvedMessage = resolveMessage(messageKey, messageArgs,
+				buildAggregatedReactionMessage(sender.getFullname(), previousSenderName, updatedActorsCount, fallbackMessage));
 
 		existing.setActorsCount(updatedActorsCount);
 		existing.setSender(sender);
@@ -138,11 +148,46 @@ public class NotificationService {
 		existing.setMessageArgs(messageArgs);
 		existing.setActionStatus(actionStatus);
 		existing.setSeen(false);
-		existing.setMessage(buildAggregatedReactionMessage(sender.getFullname(), previousSenderName, updatedActorsCount, fallbackMessage));
+		existing.setMessage(resolvedMessage);
 
 		notificationRepository.save(existing);
 		pushToFirebaseAndWebSocket(recipient, sender, existing);
 		return true;
+	}
+
+	private String resolveTitle(String title, String messageKey) {
+		if (title != null && !title.isBlank()) {
+			return title;
+		}
+		if (messageKey == null || messageKey.isBlank()) {
+			return "Notification";
+		}
+		return messageKey;
+	}
+
+	private String resolveMessage(String messageKey, String messageArgs, String fallbackMessage) {
+		if (messageKey == null || messageKey.isBlank()) {
+			return fallbackMessage;
+		}
+
+		try {
+			String[] args = parseArgs(messageArgs);
+			return messageSource.getMessage(messageKey, args, fallbackMessage, Locale.ENGLISH);
+		} catch (Exception ex) {
+			return fallbackMessage;
+		}
+	}
+
+	private String[] parseArgs(String messageArgs) {
+		if (messageArgs == null || messageArgs.isBlank()) {
+			return new String[0];
+		}
+
+		try {
+			return objectMapper.readValue(messageArgs, String[].class);
+		} catch (Exception ex) {
+			return new String[0];
+		}
 	}
 
 	private String buildAggregatedReactionMessage(String latestActorName, String previousActorName, int actorsCount, String fallbackMessage) {
@@ -151,15 +196,15 @@ public class NotificationService {
 		}
 
 		if (actorsCount <= 1 || previousActorName == null || previousActorName.isBlank()) {
-			return latestActorName + " đã bày tỏ cảm xúc về bài viết của bạn.";
+			return latestActorName + " reacted to your post.";
 		}
 
 		if (actorsCount == 2) {
-			return latestActorName + " và " + previousActorName + " đã bày tỏ cảm xúc về bài viết của bạn.";
+			return latestActorName + " and " + previousActorName + " reacted to your post.";
 		}
 
-		return latestActorName + ", " + previousActorName + " và " + (actorsCount - 2)
-				+ " người khác đã bày tỏ cảm xúc về bài viết của bạn.";
+		return latestActorName + ", " + previousActorName + " and " + (actorsCount - 2)
+				+ " others reacted to your post.";
 	}
 
 	private void pushToFirebaseAndWebSocket(User recipient, User sender, Notification notification) {
@@ -224,7 +269,7 @@ public class NotificationService {
 	@Transactional
 	public void deleteNotification(String notificationId, String userId) {
 		Notification notification = notificationRepository.findById(notificationId)
-				.orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông báo"));
+				.orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
 
 		if (notification.getRecipient().getId().equals(userId)) {
 			notificationRepository.delete(notification);
@@ -253,7 +298,7 @@ public class NotificationService {
 				.actionUrls(buildActionUrls(n))
 				.createdAt(n.getCreatedAt())
 				.senderId(n.getSender() != null ? n.getSender().getId() : null)
-				.senderName(n.getSender() != null ? n.getSender().getFullname() : "Hệ thống")
+				.senderName(n.getSender() != null ? n.getSender().getFullname() : "System")
 				.build();
 	}
 

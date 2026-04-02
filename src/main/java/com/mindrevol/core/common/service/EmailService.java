@@ -34,7 +34,7 @@ public class EmailService {
             log.info("Email sent successfully to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send email to: {}", to, e);
-            throw new RuntimeException("Không thể gửi email: " + e.getMessage());
+            throw new RuntimeException("Unable to send email: " + e.getMessage());
         }
     }
 
@@ -56,7 +56,7 @@ public class EmailService {
             log.info("HTML email sent successfully to: {}", to);
         } catch (Exception e) {
             log.error("Failed to send HTML email to: {}", to, e);
-            throw new RuntimeException("Không thể gửi email: " + e.getMessage());
+            throw new RuntimeException("Unable to send email: " + e.getMessage());
         }
     }
 
@@ -65,7 +65,7 @@ public class EmailService {
      */
     @Async
     public void sendOtpEmail(String to, String otpCode, String fullname) {
-        String subject = "Mã xác thực OTP - Mindrevol";
+        String subject = "OTP Verification Code - Mindrevol";
 
         String htmlContent = String.format("""
             <!DOCTYPE html>
@@ -86,23 +86,23 @@ public class EmailService {
                 <div class="container">
                     <div class="header">
                         <h1>🚀 Mindrevol</h1>
-                        <p>Xác thực tài khoản của bạn</p>
+                        <p>Verify your account</p>
                     </div>
                     <div class="content">
-                        <p>Xin chào <strong>%s</strong>,</p>
-                        <p>Cảm ơn bạn đã đăng ký tài khoản tại Mindrevol! Để hoàn tất quá trình đăng ký, vui lòng nhập mã OTP bên dưới:</p>
+                        <p>Hello <strong>%s</strong>,</p>
+                        <p>Thank you for signing up for Mindrevol! To complete your registration, please enter the OTP code below:</p>
                         <div class="otp-code">%s</div>
-                        <p class="warning">⚠️ Mã OTP này có hiệu lực trong <strong>15 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
-                        <p>Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.</p>
+                        <p class="warning">⚠️ This OTP code is valid for <strong>15 minutes</strong>. Please do not share this code with anyone.</p>
+                        <p>If you did not request this, please ignore this email.</p>
                     </div>
                     <div class="footer">
                         <p>© 2026 Mindrevol. All rights reserved.</p>
-                        <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+                        <p>This email was sent automatically. Please do not reply.</p>
                     </div>
                 </div>
             </body>
             </html>
-            """, fullname != null ? fullname : "bạn", otpCode);
+            """, fullname != null ? fullname : "you", otpCode);
 
         sendHtmlEmail(to, subject, htmlContent);
     }
