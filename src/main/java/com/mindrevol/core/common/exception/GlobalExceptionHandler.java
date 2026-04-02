@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentialsException(BadCredentialsException ex) {
-        return buildResponse(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không chính xác.", "BAD_CREDENTIALS");
+        return buildResponse(HttpStatus.UNAUTHORIZED, "Email or password is incorrect.", "BAD_CREDENTIALS");
     }
     
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -62,7 +62,7 @@ public class GlobalExceptionHandler {
         
         // Dùng method error có data
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), "Dữ liệu không hợp lệ", "VALIDATION_FAILED", errors));
+                .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), "Invalid data", "VALIDATION_FAILED", errors));
     }
 
     @ExceptionHandler(Exception.class)
@@ -71,48 +71,48 @@ public class GlobalExceptionHandler {
         log.error("Internal Error: ", ex);
         
         // QUAN TRỌNG: Không trả về ex.getMessage() nguyên bản cho client để tránh lộ thông tin hệ thống
-        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.", "INTERNAL_SERVER_ERROR");
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An internal server error occurred. Please try again later.", "INTERNAL_SERVER_ERROR");
     }
     
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadableException(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         log.warn("Malformed JSON request: {}", ex.getMessage());
-        return buildResponse(HttpStatus.BAD_REQUEST, "Định dạng dữ liệu gửi lên không hợp lệ (sai kiểu dữ liệu hoặc thiếu dấu phẩy).", "MALFORMED_JSON");
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid request payload format (wrong data type or missing comma).", "MALFORMED_JSON");
     }
     
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceededException(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
         log.warn("File size limit exceeded: {}", ex.getMessage());
-        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "Kích thước file tải lên vượt quá giới hạn cho phép.", "FILE_TOO_LARGE");
+        return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file size exceeds the allowed limit.", "FILE_TOO_LARGE");
     }
     
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
         log.warn("Access Denied: {}", ex.getMessage());
-        return buildResponse(HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện hành động này.", "ACCESS_DENIED");
+        return buildResponse(HttpStatus.FORBIDDEN, "You do not have permission to perform this action.", "ACCESS_DENIED");
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
         log.warn("Route not found: {} {}", ex.getHttpMethod(), ex.getResourcePath());
-        return buildResponse(HttpStatus.NOT_FOUND, "Không tìm thấy API hoặc tài nguyên yêu cầu.", "ROUTE_NOT_FOUND");
+        return buildResponse(HttpStatus.NOT_FOUND, "Requested API or resource was not found.", "ROUTE_NOT_FOUND");
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNoHandlerFound(NoHandlerFoundException ex) {
         log.warn("Route not mapped: {} {}", ex.getHttpMethod(), ex.getRequestURL());
-        return buildResponse(HttpStatus.NOT_FOUND, "Không tìm thấy API hoặc tài nguyên yêu cầu.", "ROUTE_NOT_FOUND");
+        return buildResponse(HttpStatus.NOT_FOUND, "Requested API or resource was not found.", "ROUTE_NOT_FOUND");
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
         log.warn("Method not supported: {}", ex.getMessage());
-        return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, "Phương thức HTTP không được hỗ trợ cho endpoint này.", "METHOD_NOT_ALLOWED");
+        return buildResponse(HttpStatus.METHOD_NOT_ALLOWED, "HTTP method is not supported for this endpoint.", "METHOD_NOT_ALLOWED");
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiResponse<Void>> handleMissingRequestParam(MissingServletRequestParameterException ex) {
         log.warn("Missing request parameter: {}", ex.getParameterName());
-        return buildResponse(HttpStatus.BAD_REQUEST, "Thiếu tham số bắt buộc: " + ex.getParameterName(), "MISSING_REQUEST_PARAMETER");
+        return buildResponse(HttpStatus.BAD_REQUEST, "Missing required parameter: " + ex.getParameterName(), "MISSING_REQUEST_PARAMETER");
     }
 }
