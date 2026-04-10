@@ -17,6 +17,14 @@ import java.util.Optional;
 @Repository
 public interface CheckinRepository extends JpaRepository<Checkin, String> {
 
+	// [ĐÃ THÊM JOIN FETCH c.user] Lấy Grid feed Hành trình: Bài của bản thân + Bạn bè
+    @Query("SELECT c FROM Checkin c JOIN FETCH c.user WHERE c.journey IS NOT NULL " +
+           "AND (c.user.id = :userId " +
+           "OR c.user.id IN (SELECT f.addressee.id FROM Friendship f WHERE f.requester.id = :userId AND f.status = 'ACCEPTED') " +
+           "OR c.user.id IN (SELECT f.requester.id FROM Friendship f WHERE f.addressee.id = :userId AND f.status = 'ACCEPTED')) " +
+           "ORDER BY c.createdAt DESC")
+    Page<Checkin> findJourneyGridFeed(@Param("userId") String userId, Pageable pageable);
+
     // [THÊM MỚI] Lấy các bài viết Lưu trữ cá nhân (không thuộc hành trình nào)
     @Query("SELECT c FROM Checkin c WHERE c.user.id = :userId AND c.journey IS NULL ORDER BY c.createdAt DESC")
     Page<Checkin> findArchivedCheckinsByUser(@Param("userId") String userId, Pageable pageable);
@@ -85,7 +93,6 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     java.util.List<String> findPreviewImagesByJourneyId(@org.springframework.data.repository.query.Param("journeyId") String journeyId, org.springframework.data.domain.Pageable pageable);
     
     // Truy vấn Native SQL phức tạp: Lấy DỮ LIỆU LỊCH (Calendar Recap) cho một tháng cụ thể.
-    // Dùng ROW_NUMBER() để đảm bảo: Nếu 1 ngày đăng nhiều bài, chỉ lấy 1 bài (bài mới nhất) để làm ảnh đại diện cho ngày đó trên Lịch.
     @Query(value = "SELECT " +
             "  CAST(EXTRACT(DAY FROM created_at) AS INTEGER) AS day, " +
             "  image_url AS imageUrl, " +
@@ -106,9 +113,8 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
                                                  @Param("year") int year, 
                                                  @Param("month") int month);
     
-    // Đếm tổng số bài đăng của một user (bỏ qua các bài đã xóa mềm - Soft Delete)
+    // Đếm tổng số bài đăng của một user
     long countByUserIdAndDeletedAtIsNull(String userId);
     
-    // Đếm tổng số bài đăng của user (Dùng khi DB không áp dụng xóa mềm)
     long countByUserId(String userId);
 }

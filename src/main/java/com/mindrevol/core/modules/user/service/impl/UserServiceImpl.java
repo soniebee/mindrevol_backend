@@ -233,12 +233,14 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserSettings getNotificationSettings(String userId) {
-        return userSettingsRepository.findByUserId(userId)
+        UserSettings settings = userSettingsRepository.findByUserId(userId)
                 .orElseGet(() -> {
                     User user = getUserById(userId);
-                    UserSettings settings = UserSettings.builder().user(user).build();
-                    return userSettingsRepository.save(settings);
+                    return UserSettings.builder().user(user).build();
                 });
+
+        normalizeSimpleCategorySettings(settings);
+        return userSettingsRepository.save(settings);
     }
 
     @Override
@@ -246,14 +248,179 @@ public class UserServiceImpl implements UserService {
     public UserSettings updateNotificationSettings(String userId, UpdateNotificationSettingsRequest request) {
         UserSettings settings = getNotificationSettings(userId);
 
+        boolean hasUnifiedCategoryToggle = request.getCommentEnabled() != null
+                || request.getReactionEnabled() != null
+                || request.getMessageEnabled() != null
+                || request.getJourneyEnabled() != null
+                || request.getFriendRequestEnabled() != null
+                || request.getBoxInviteEnabled() != null
+                || request.getMentionEnabled() != null;
+
+        // Category-only UI does not expose channel masters; keep them ON to avoid hidden blockers.
+        if (hasUnifiedCategoryToggle) {
+            settings.setPushEnabled(true);
+            settings.setInAppEnabled(true);
+            settings.setEmailEnabled(true);
+        }
+
+        if (request.getCommentEnabled() != null) {
+            boolean enabled = request.getCommentEnabled();
+            settings.setInAppComment(enabled);
+            settings.setPushComment(enabled);
+            settings.setPushNewComment(enabled);
+            settings.setEmailComment(enabled);
+        }
+
+        if (request.getReactionEnabled() != null) {
+            boolean enabled = request.getReactionEnabled();
+            settings.setInAppReaction(enabled);
+            settings.setPushReaction(enabled);
+            settings.setEmailReaction(enabled);
+        }
+
+        if (request.getMessageEnabled() != null) {
+            boolean enabled = request.getMessageEnabled();
+            settings.setInAppMessage(enabled);
+            settings.setPushMessage(enabled);
+            settings.setEmailMessage(enabled);
+        }
+
+        if (request.getJourneyEnabled() != null) {
+            boolean enabled = request.getJourneyEnabled();
+            settings.setInAppJourney(enabled);
+            settings.setPushJourney(enabled);
+            settings.setPushJourneyInvite(enabled);
+            settings.setEmailJourney(enabled);
+        }
+
+        if (request.getFriendRequestEnabled() != null) {
+            boolean enabled = request.getFriendRequestEnabled();
+            settings.setInAppFriendRequest(enabled);
+            settings.setPushFriendRequest(enabled);
+            settings.setPushFriendRequestCategory(enabled);
+            settings.setEmailFriendRequest(enabled);
+        }
+
+        if (request.getBoxInviteEnabled() != null) {
+            boolean enabled = request.getBoxInviteEnabled();
+            settings.setInAppBoxInvite(enabled);
+            settings.setPushBoxInvite(enabled);
+            settings.setEmailBoxInvite(enabled);
+        }
+
+        if (request.getMentionEnabled() != null) {
+            boolean enabled = request.getMentionEnabled();
+            settings.setInAppMention(enabled);
+            settings.setPushMention(enabled);
+            settings.setEmailMention(enabled);
+        }
+
         if (request.getEmailDailyReminder() != null) settings.setEmailDailyReminder(request.getEmailDailyReminder());
         if (request.getEmailUpdates() != null) settings.setEmailUpdates(request.getEmailUpdates());
         if (request.getPushFriendRequest() != null) settings.setPushFriendRequest(request.getPushFriendRequest());
         if (request.getPushNewComment() != null) settings.setPushNewComment(request.getPushNewComment());
         if (request.getPushJourneyInvite() != null) settings.setPushJourneyInvite(request.getPushJourneyInvite());
         if (request.getPushReaction() != null) settings.setPushReaction(request.getPushReaction());
+        if (request.getPushMessage() != null) settings.setPushMessage(request.getPushMessage());
+        if (request.getPushMention() != null) settings.setPushMention(request.getPushMention());
+        if (request.getPushBoxInvite() != null) settings.setPushBoxInvite(request.getPushBoxInvite());
+        if (request.getPushEnabled() != null) settings.setPushEnabled(request.getPushEnabled());
+        if (request.getInAppEnabled() != null) settings.setInAppEnabled(request.getInAppEnabled());
+        if (request.getEmailEnabled() != null) settings.setEmailEnabled(request.getEmailEnabled());
+
+        if (request.getInAppComment() != null) settings.setInAppComment(request.getInAppComment());
+        if (request.getInAppReaction() != null) settings.setInAppReaction(request.getInAppReaction());
+        if (request.getInAppMessage() != null) settings.setInAppMessage(request.getInAppMessage());
+        if (request.getInAppJourney() != null) settings.setInAppJourney(request.getInAppJourney());
+        if (request.getInAppFriendRequest() != null) settings.setInAppFriendRequest(request.getInAppFriendRequest());
+        if (request.getInAppBoxInvite() != null) settings.setInAppBoxInvite(request.getInAppBoxInvite());
+        if (request.getInAppMention() != null) settings.setInAppMention(request.getInAppMention());
+
+        if (request.getPushComment() != null) settings.setPushComment(request.getPushComment());
+        if (request.getPushJourney() != null) settings.setPushJourney(request.getPushJourney());
+        if (request.getPushFriendRequestCategory() != null) settings.setPushFriendRequestCategory(request.getPushFriendRequestCategory());
+
+        if (request.getEmailComment() != null) settings.setEmailComment(request.getEmailComment());
+        if (request.getEmailReaction() != null) settings.setEmailReaction(request.getEmailReaction());
+        if (request.getEmailMessage() != null) settings.setEmailMessage(request.getEmailMessage());
+        if (request.getEmailJourney() != null) settings.setEmailJourney(request.getEmailJourney());
+        if (request.getEmailFriendRequest() != null) settings.setEmailFriendRequest(request.getEmailFriendRequest());
+        if (request.getEmailBoxInvite() != null) settings.setEmailBoxInvite(request.getEmailBoxInvite());
+        if (request.getEmailMention() != null) settings.setEmailMention(request.getEmailMention());
+
+        // BỔ SUNG SPRINT 2: Cập nhật DND
+        if (request.getDndEnabled() != null) settings.setDndEnabled(request.getDndEnabled());
+        if (request.getDndStartHour() != null) {
+            validateHour(request.getDndStartHour(), "dndStartHour");
+            settings.setDndStartHour(request.getDndStartHour());
+        }
+        if (request.getDndEndHour() != null) {
+            validateHour(request.getDndEndHour(), "dndEndHour");
+            settings.setDndEndHour(request.getDndEndHour());
+        }
+
+        normalizeSimpleCategorySettings(settings);
 
         return userSettingsRepository.save(settings);
+    }
+
+    @Override
+    @Transactional
+    public UserSettings resetNotificationSettings(String userId) {
+        User user = getUserById(userId);
+        userSettingsRepository.deleteByUserId(userId);
+        return userSettingsRepository.save(UserSettings.builder().user(user).build());
+    }
+
+    private void validateHour(Integer hour, String fieldName) {
+        if (hour < 0 || hour > 23) {
+            throw new BadRequestException(fieldName + " must be between 0 and 23");
+        }
+    }
+
+    private void normalizeSimpleCategorySettings(UserSettings settings) {
+        boolean commentEnabled = settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
+        boolean reactionEnabled = settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
+        boolean messageEnabled = settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
+        boolean journeyEnabled = settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
+        boolean friendEnabled = settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
+        boolean boxInviteEnabled = settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
+        boolean mentionEnabled = settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
+
+        settings.setInAppEnabled(true);
+        settings.setPushEnabled(true);
+        settings.setEmailEnabled(true);
+
+        settings.setInAppComment(commentEnabled);
+        settings.setPushComment(commentEnabled);
+        settings.setPushNewComment(commentEnabled);
+        settings.setEmailComment(commentEnabled);
+
+        settings.setInAppReaction(reactionEnabled);
+        settings.setPushReaction(reactionEnabled);
+        settings.setEmailReaction(reactionEnabled);
+
+        settings.setInAppMessage(messageEnabled);
+        settings.setPushMessage(messageEnabled);
+        settings.setEmailMessage(messageEnabled);
+
+        settings.setInAppJourney(journeyEnabled);
+        settings.setPushJourney(journeyEnabled);
+        settings.setPushJourneyInvite(journeyEnabled);
+        settings.setEmailJourney(journeyEnabled);
+
+        settings.setInAppFriendRequest(friendEnabled);
+        settings.setPushFriendRequest(friendEnabled);
+        settings.setPushFriendRequestCategory(friendEnabled);
+        settings.setEmailFriendRequest(friendEnabled);
+
+        settings.setInAppBoxInvite(boxInviteEnabled);
+        settings.setPushBoxInvite(boxInviteEnabled);
+        settings.setEmailBoxInvite(boxInviteEnabled);
+
+        settings.setInAppMention(mentionEnabled);
+        settings.setPushMention(mentionEnabled);
+        settings.setEmailMention(mentionEnabled);
     }
 
     @Override

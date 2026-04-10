@@ -18,17 +18,16 @@ public class MoodController {
 
     private final MoodService moodService;
 
-    // 1. Đăng/Cập nhật Mood trong Box
+    // 1. Đăng/Cập nhật Mood
     @PostMapping
     public ApiResponse<MoodResponse> createOrUpdateMood(
             @PathVariable String boxId,
             @Valid @RequestBody MoodRequest request) {
         String userId = SecurityUtils.getCurrentUserId();
-        // Đã sửa thứ tự: boxId -> userId -> request
         return ApiResponse.success(moodService.createOrUpdateMood(boxId, userId, request));
     }
 
-    // 2. Lấy toàn bộ Mood của các thành viên trong Box
+    // 2. Lấy danh sách Mood
     @GetMapping
     public ApiResponse<List<MoodResponse>> getBoxMoods(@PathVariable String boxId) {
         String userId = SecurityUtils.getCurrentUserId();
@@ -43,25 +42,34 @@ public class MoodController {
         return ApiResponse.success(null);
     }
 
-    // 4. Thả tim bão táp (Spam thoải mái)
+    // 4. Thả cảm xúc (Thả tim)
     @PostMapping("/{moodId}/reactions")
     public ApiResponse<Void> reactToMood(
             @PathVariable String boxId,
             @PathVariable String moodId,
-            @RequestParam String type) { // type ở đây đóng vai trò là emoji
+            @RequestParam String type) { 
         String userId = SecurityUtils.getCurrentUserId();
-        // Đã sửa thứ tự: boxId -> moodId -> userId -> type (emoji)
         moodService.reactToMood(boxId, moodId, userId, type);
         return ApiResponse.success(null);
     }
 
-    // 5. 🔥 MỚI: Rút lại cảm xúc (Hủy thả tim)
+    // 5. Gỡ bỏ cảm xúc đã thả
     @DeleteMapping("/{moodId}/reactions")
     public ApiResponse<Void> removeReaction(
-            @PathVariable String boxId, // Box ID vẫn nằm trên URL nhưng không dùng ở Service
+            @PathVariable String boxId, 
             @PathVariable String moodId) {
         String userId = SecurityUtils.getCurrentUserId();
         moodService.removeReaction(moodId, userId);
+        return ApiResponse.success(null);
+    }
+
+    // 6. 🔥 TÍNH NĂNG MỚI: Hỏi thăm/Chọc bạn bè
+    @PostMapping("/ask/{targetUserId}")
+    public ApiResponse<Void> askFriendMood(
+            @PathVariable String boxId,
+            @PathVariable String targetUserId) {
+        String askerId = SecurityUtils.getCurrentUserId();
+        moodService.askFriendMood(boxId, askerId, targetUserId);
         return ApiResponse.success(null);
     }
 }

@@ -14,22 +14,20 @@ import java.util.Optional;
 @Repository
 public interface MoodRepository extends JpaRepository<Mood, String> {
 
-    // 1. Lấy tất cả trạng thái CÒN HẠN trong một Box (Phục vụ API get danh sách)
+    // Lấy tất cả trạng thái CÒN HẠN trong một Box
     List<Mood> findByBoxIdAndExpiresAtAfterOrderByUpdatedAtDesc(String boxId, LocalDateTime now);
 
-    // 2. Tìm trạng thái hiện tại của 1 user trong Box (Phục vụ API đăng/xóa trạng thái)
+    // Tìm trạng thái hiện tại của 1 user trong Box
     Optional<Mood> findByBoxIdAndUserIdAndExpiresAtAfter(String boxId, String userId, LocalDateTime now);
 
     // =========================================================================
-    // 🔥 CÁC HÀM DƯỚI ĐÂY DÀNH CHO JOB CHẠY NGẦM (DỌN RÁC)
+    // HÀM DÀNH CHO JOB CHẠY NGẦM (DỌN RÁC)
     // =========================================================================
 
-    // 3. Dọn các lượt thả tim của các Mood đã quá hạn
     @Modifying
     @Query(value = "DELETE FROM mood_reactions WHERE mood_id IN (SELECT id FROM moods WHERE expires_at <= :now)", nativeQuery = true)
     void hardDeleteExpiredReactions(@Param("now") LocalDateTime now);
 
-    // 4. Dọn các Mood đã quá hạn
     @Modifying
     @Query(value = "DELETE FROM moods WHERE expires_at <= :now", nativeQuery = true)
     void hardDeleteExpiredMoods(@Param("now") LocalDateTime now);

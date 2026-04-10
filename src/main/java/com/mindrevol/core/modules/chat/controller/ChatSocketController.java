@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/controller/ChatSocketController.java (CẬP NHẬT)
 package com.mindrevol.core.modules.chat.controller;
 
 import com.mindrevol.core.modules.chat.dto.request.TypingEvent;
@@ -13,18 +14,12 @@ public class ChatSocketController {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    /**
-     * Nhận sự kiện Typing từ Client A gửi lên
-     * Client gửi tới: /app/chat/typing
-     */
     @MessageMapping("/chat/typing")
     public void handleTypingEvent(@Payload TypingEvent event) {
-        // Forward ngay lập tức cho Client B (receiverId)
-        // Client B sẽ subscribe: /user/queue/typing
-        
-        messagingTemplate.convertAndSendToUser(
-            String.valueOf(event.getReceiverId()),
-            "/queue/typing",
+        // [THAY ĐỔI QUAN TRỌNG] Bắn sự kiện Typing vào Topic của phòng thay vì gửi thẳng cho 1 cá nhân
+        // Client sẽ subscribe: /topic/chat.{conversationId}.typing
+        messagingTemplate.convertAndSend(
+            "/topic/chat." + event.getConversationId() + ".typing",
             event
         );
     }

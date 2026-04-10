@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/dto/response/MessageResponse.java
 package com.mindrevol.core.modules.chat.dto.response;
 
 import com.mindrevol.core.modules.chat.entity.MessageDeliveryStatus;
@@ -11,12 +12,13 @@ import java.util.Map;
 @Data
 @Builder
 public class MessageResponse {
-    private String id;              // [SỬA] Long -> String
+    private String id;              
     private String clientSideId;
-    private String conversationId;  // [SỬA] Long -> String
+    private String conversationId;  
     
-    private String senderId;        // [SỬA] Long -> String
+    private String senderId;        
     private String senderAvatar;
+    private String senderName; // Bổ sung cho chat nhóm
     
     private String content;
     private MessageType type;
@@ -24,7 +26,11 @@ public class MessageResponse {
     
     private MessageDeliveryStatus deliveryStatus;
     private boolean isDeleted;
-    private String replyToMsgId;    // [SỬA] Long -> String
+    private String replyToMsgId;    
+    
+    // [THÊM MỚI] Map UserId -> ReactionType
+    private Map<String, String> reactions;
     
     private LocalDateTime createdAt;
+    private boolean isPinned;
 }

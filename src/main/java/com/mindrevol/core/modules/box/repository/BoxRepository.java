@@ -10,7 +10,19 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface BoxRepository extends JpaRepository<Box, String> {
-    // Lấy danh sách các Box mà user đang là thành viên
-    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId")
-    Page<Box> findMyBoxes(@Param("userId") String userId, Pageable pageable);
+    
+    // Lấy TẤT CẢ các Box (Có tìm kiếm)
+    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId " +
+           "AND (:search IS NULL OR :search = '' OR LOWER(b.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(b.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Box> findMyBoxes(@Param("userId") String userId, @Param("search") String search, Pageable pageable);
+
+    // Lấy Box CÁ NHÂN (Do mình làm Owner, có tìm kiếm)
+    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId AND b.owner.id = :userId " +
+           "AND (:search IS NULL OR :search = '' OR LOWER(b.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(b.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Box> findMyPersonalBoxes(@Param("userId") String userId, @Param("search") String search, Pageable pageable);
+
+    // Lấy Box BẠN BÈ (Do người khác làm Owner, có tìm kiếm)
+    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId AND b.owner.id != :userId " +
+           "AND (:search IS NULL OR :search = '' OR LOWER(b.name) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(b.description) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Box> findMyFriendBoxes(@Param("userId") String userId, @Param("search") String search, Pageable pageable);
 }

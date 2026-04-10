@@ -3,11 +3,14 @@ package com.mindrevol.core.modules.notification.dto.response;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
+
+import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Builder
-public class NotificationResponse {
+public class NotificationResponse implements Serializable {
     private String id;
     private String title;
     private String message;
@@ -22,6 +25,10 @@ public class NotificationResponse {
     private boolean isSeen;
 
     private int actorsCount;
+    private String actionStatus;
+    private String messageKey;
+    private String messageArgs;
+    private Map<String, String> actionUrls;
 
     private LocalDateTime createdAt;
     private String senderId;

@@ -18,10 +18,12 @@ import com.mindrevol.core.modules.user.repository.UserBlockRepository;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -67,6 +69,19 @@ public class FeedServiceImpl implements FeedService {
         return finalFeed;
     }
 
+    @Override
+    @Transactional(readOnly = true) // [THÊM DÒNG NÀY VÀO]
+    public List<FeedItemResponse> getJourneyGridFeed(String userId, int page, int limit) {
+        Pageable pageable = PageRequest.of(page, limit);
+        
+        // Gọi query từ Repository (bản thân + bạn bè)
+        Page<Checkin> checkins = checkinRepository.findJourneyGridFeed(userId, pageable);
+        
+        return checkins.getContent().stream()
+                .map(checkinMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+
     private List<CheckinResponse> getCachedPosts(String userId, int offset, int limit) {
         int page = (limit > 0) ? (offset / limit) : 0;
         String cacheKey = FEED_CACHE_PREFIX + userId + ":" + page;
@@ -86,14 +101,11 @@ public class FeedServiceImpl implements FeedService {
 
         Pageable pageable = PageRequest.of(page, limit);
         LocalDateTime cursor = LocalDateTime.now().plusSeconds(10);
-
-        // [FIX BIÊN DỊCH]: Gọi method mới (5 tham số)
-        // Lấy 30 ngày cho Feed Service (để có nhiều data trộn quảng cáo hơn)
         LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
 
         List<Checkin> dbCheckins = checkinRepository.findUnifiedFeedRecent(
                 userId,
-                thirtyDaysAgo, // sinceDate
+                thirtyDaysAgo, 
                 cursor,
                 blockedIds,
                 pageable
@@ -146,7 +158,6 @@ public class FeedServiceImpl implements FeedService {
 
     private SystemAd findMatchingAffiliate(List<String> postTags, List<SystemAd> ads) {
         if (postTags == null || postTags.isEmpty() || ads.isEmpty()) return null;
-
         List<SystemAd> shuffledAds = new ArrayList<>(ads);
         Collections.shuffle(shuffledAds);
 

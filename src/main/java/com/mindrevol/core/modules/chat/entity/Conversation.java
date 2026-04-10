@@ -1,15 +1,16 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/entity/Conversation.java
 package com.mindrevol.core.modules.chat.entity;
 
 import com.mindrevol.core.common.entity.BaseEntity;
-import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "conversations", indexes = {
-    @Index(name = "idx_user1_user2", columnList = "user1_id, user2_id"),
     @Index(name = "idx_last_message_at", columnList = "last_message_at")
 })
 @Getter
@@ -19,15 +20,11 @@ import java.time.LocalDateTime;
 @SuperBuilder
 public class Conversation extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user1_id", nullable = false)
-    private User user1;
+    // ĐÃ XÓA user1 và user2. Thay bằng danh sách participants.
+    @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ConversationParticipant> participants = new ArrayList<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user2_id", nullable = false)
-    private User user2;
-
-    // --- Caching for Inbox ---
     @Column(name = "last_message_content")
     private String lastMessageContent; 
 
@@ -35,17 +32,13 @@ public class Conversation extends BaseEntity {
     private LocalDateTime lastMessageAt;
 
     @Column(name = "last_sender_id")
-    private String lastSenderId; // [SỬA] Long -> String
-
-    // --- Read Receipts ---
-    @Column(name = "user1_last_read_msg_id")
-    private String user1LastReadMessageId; // [SỬA] Long -> String
-
-    @Column(name = "user2_last_read_msg_id")
-    private String user2LastReadMessageId; // [SỬA] Long -> String
+    private String lastSenderId; 
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     @Builder.Default
     private ConversationStatus status = ConversationStatus.ACTIVE;
+
+    @Column(name = "box_id")
+    private String boxId;
 }

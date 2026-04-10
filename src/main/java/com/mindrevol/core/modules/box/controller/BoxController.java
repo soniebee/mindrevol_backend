@@ -39,10 +39,12 @@ public class BoxController {
     // 2. Lấy danh sách Box của tôi
     @GetMapping
     public ApiResponse<Page<BoxResponse>> getMyBoxes(
+            @RequestParam(defaultValue = "all") String tab,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("lastActivityAt").descending());
-        return ApiResponse.success(boxService.getMyBoxes(SecurityUtils.getCurrentUserId(), pageable));
+        return ApiResponse.success(boxService.getMyBoxes(SecurityUtils.getCurrentUserId(), tab, search, pageable));
     }
 
     // 3. Lấy chi tiết Box
@@ -125,8 +127,9 @@ public class BoxController {
 
     // 12. Lấy danh sách lời mời đang chờ của tôi
     @GetMapping("/invitations/me")
-    public ApiResponse<List<BoxInvitationResponse>> getMyPendingInvitations() {
-        return ApiResponse.success(boxService.getMyPendingInvitations(SecurityUtils.getCurrentUserId()));
+    public ApiResponse<List<BoxInvitationResponse>> getMyPendingInvitations(
+            @RequestParam(required = false) String search) {
+        return ApiResponse.success(boxService.getMyPendingInvitations(SecurityUtils.getCurrentUserId(), search));
     }
 
     // 13. Lấy danh sách thành viên trong Box

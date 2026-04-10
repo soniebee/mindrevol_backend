@@ -14,7 +14,7 @@ import com.mindrevol.core.modules.journey.entity.JourneyStatus;
 import com.mindrevol.core.modules.journey.entity.JourneyTheme;
 import com.mindrevol.core.modules.journey.entity.JourneyVisibility;
 import com.mindrevol.core.modules.journey.entity.RequestStatus;
-import com.mindrevol.core.modules.journey.service.impl.JourneyServiceImpl;
+import com.mindrevol.core.modules.journey.service.JourneyService;
 import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.common.constant.AppConstants;
@@ -27,15 +27,12 @@ import com.mindrevol.core.modules.checkin.entity.Checkin;
 import com.mindrevol.core.modules.checkin.mapper.CheckinMapper;
 import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
 import com.mindrevol.core.modules.journey.dto.request.CreateJourneyRequest;
-import com.mindrevol.core.modules.journey.dto.response.*;
-import com.mindrevol.core.modules.journey.entity.*;
 import com.mindrevol.core.modules.journey.event.JourneyCreatedEvent;
 import com.mindrevol.core.modules.journey.event.JourneyJoinedEvent;
 import com.mindrevol.core.modules.journey.repository.JourneyInvitationRepository;
 import com.mindrevol.core.modules.journey.repository.JourneyParticipantRepository;
 import com.mindrevol.core.modules.journey.repository.JourneyRepository;
 import com.mindrevol.core.modules.journey.repository.JourneyRequestRepository;
-import com.mindrevol.core.modules.journey.service.JourneyService;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
 import com.mindrevol.core.modules.user.entity.Friendship;
 import com.mindrevol.core.modules.user.entity.User;
@@ -45,8 +42,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +50,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -77,7 +71,7 @@ public class JourneyServiceImpl implements JourneyService {
     private final CheckinMapper checkinMapper;
     
     private final BoxRepository boxRepository;
-    private final BoxMemberRepository boxMemberRepository; // Thêm để check quyền Box
+    private final BoxMemberRepository boxMemberRepository; 
 
     private LocalDate getTodayInUserTimezone(User user) {
         String tz = user.getTimezone() != null ? user.getTimezone() : "UTC";
@@ -93,11 +87,24 @@ public class JourneyServiceImpl implements JourneyService {
         return boxMemberRepository.existsByBoxIdAndUserId(boxId, userId);
     }
 
+    // [CẬP NHẬT] Xử lý Access đúng nghiệp vụ "Box > Hành trình"
     private boolean hasAccessToJourney(Journey journey, String userId) {
-        if (journey.getBox() != null && isUserInBox(journey.getBox().getId(), userId)) {
-            return true;
+        boolean isParticipant = participantRepository.existsByJourneyIdAndUserId(journey.getId(), userId);
+        
+        if (journey.getBox() != null) {
+            boolean isBoxMember = isUserInBox(journey.getBox().getId(), userId);
+            if (!isBoxMember) return false; // Không trong Box -> Loại ngay
+
+            // Quyền tối cao: Owner của Box luôn có access xem toàn bộ Hành trình trong Box
+            if (journey.getBox().getOwner().getId().equals(userId)) return true;
+
+            if (journey.getVisibility() == JourneyVisibility.PUBLIC) {
+                return true; // Hành trình Mở trong Box -> Mọi Box Member đều có quyền xem
+            } else {
+                return isParticipant; // Hành trình Khóa trong Box -> Phải được mời vào (participant)
+            }
         }
-        return participantRepository.existsByJourneyIdAndUserId(journey.getId(), userId);
+        return isParticipant;
     }
 
     @Override
@@ -164,7 +171,6 @@ public class JourneyServiceImpl implements JourneyService {
         
         if (!isViewerMember) members = members.stream().filter(JourneyParticipant::isProfileVisible).collect(Collectors.toList());
 
-        // Lấy số lượng từ Box + Guest
         long totalBoxMembers = journey.getBox() != null ? boxMemberRepository.countByBoxId(journey.getBox().getId()) : 0;
         long totalGuests = participantRepository.countByJourneyId(journey.getId());
         long totalMembers = totalBoxMembers + totalGuests;
@@ -211,6 +217,9 @@ public class JourneyServiceImpl implements JourneyService {
                 .theme(themeString)
                 .themeColor(journey.getThemeColor())
                 .avatar(journey.getAvatar())
+                .boxId(journey.getBox() != null ? journey.getBox().getId() : null)
+                .boxName(journey.getBox() != null ? journey.getBox().getName() : null)
+                .boxAvatar(journey.getBox() != null ? journey.getBox().getAvatar() : null)
                 .memberAvatars(memberAvatars)
                 .totalMembers((int)totalMembers)
                 .daysRemaining(daysRemaining)
@@ -238,6 +247,7 @@ public class JourneyServiceImpl implements JourneyService {
         return JourneyAlertResponse.builder().journeyPendingInvitations(pendingInvites).waitingApprovalRequests(totalRequests).journeyIdsWithRequests(idsWithRequests).build();
     }
 
+    // [CẬP NHẬT] Lấy danh sách bạn bè được phép mời
     @Override
     @Transactional(readOnly = true)
     public List<UserSummaryResponse> getInvitableFriends(String journeyId, String userId) {
@@ -245,15 +255,22 @@ public class JourneyServiceImpl implements JourneyService {
         List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
         Set<String> participantIds = participants.stream().map(p -> p.getUser().getId()).collect(Collectors.toSet());
         
-        // Nếu journey trong Box, không mời những người đã ở trong Box
+        List<User> candidates;
+        
         if (journey.getBox() != null) {
+            // Nghiệp vụ: Nếu Hành trình trong Box, CHỈ lọc ra những người trong Box
             List<BoxMember> boxMembers = boxMemberRepository.findByBoxId(journey.getBox().getId());
-            participantIds.addAll(boxMembers.stream().map(m -> m.getUser().getId()).collect(Collectors.toSet()));
+            candidates = boxMembers.stream().map(BoxMember::getUser).collect(Collectors.toList());
+        } else {
+            // Hành trình độc lập thì lấy bạn bè
+            List<Friendship> friendships = friendshipRepository.findAllAcceptedFriendsList(userId);
+            candidates = friendships.stream().map(f -> f.getFriend(userId)).collect(Collectors.toList());
         }
 
-        List<Friendship> friendships = friendshipRepository.findAllAcceptedFriendsList(userId);
-        return friendships.stream().map(f -> f.getFriend(userId)).filter(friend -> !participantIds.contains(friend.getId()))
-                .map(friend -> UserSummaryResponse.builder().id(friend.getId()).fullname(friend.getFullname()).avatarUrl(friend.getAvatarUrl()).handle(friend.getHandle()).build()).collect(Collectors.toList());
+        return candidates.stream()
+                .filter(c -> !participantIds.contains(c.getId())) // Lọc bỏ những ai ĐÃ LÀ participant
+                .map(c -> UserSummaryResponse.builder().id(c.getId()).fullname(c.getFullname()).avatarUrl(c.getAvatarUrl()).handle(c.getHandle()).build())
+                .collect(Collectors.toList());
     }
 
     private User getUserEntity(String userId) {
@@ -283,7 +300,6 @@ public class JourneyServiceImpl implements JourneyService {
         
         journey = journeyRepository.save(journey);
         
-        // Chỉ lưu vào JourneyParticipant nếu hành trình này độc lập (không thuộc Box)
         if (journey.getBox() == null) {
             JourneyParticipant owner = JourneyParticipant.builder().journey(journey).user(currentUser).role(JourneyRole.OWNER).joinedAt(LocalDateTime.now()).isProfileVisible(true).build();
             participantRepository.save(owner);
@@ -304,6 +320,11 @@ public class JourneyServiceImpl implements JourneyService {
 
         if (hasAccessToJourney(journey, userId)) return getJourneyDetail(userId, journey.getId());
 
+        // [CẬP NHẬT] Chặn người ngoài Box
+        if (journey.getBox() != null && !isUserInBox(journey.getBox().getId(), userId)) {
+            throw new BadRequestException("Phải tham gia Không gian chứa Hành trình này trước.");
+        }
+
         LocalDate today = getTodayInUserTimezone(currentUser);
         if (journey.getEndDate() != null && journey.getEndDate().isBefore(today)) throw new BadRequestException("Hành trình đã kết thúc.");
 
@@ -315,7 +336,6 @@ public class JourneyServiceImpl implements JourneyService {
 
         validateJourneyCapacity(journey);
 
-        // Tham gia qua mã mời => Trở thành GUEST
         JourneyParticipant member = JourneyParticipant.builder().journey(journey).user(currentUser).role(JourneyRole.GUEST).joinedAt(LocalDateTime.now()).isProfileVisible(true).build();
         participantRepository.save(member);
         eventPublisher.publishEvent(new JourneyJoinedEvent(journey, currentUser));
@@ -333,6 +353,7 @@ public class JourneyServiceImpl implements JourneyService {
              if(journeyRequestRepository.existsByJourneyIdAndUserIdAndStatus(journeyId, userId, RequestStatus.PENDING)) pendingStatus = "PENDING";
         }
         
+        // Cập nhật lại Security check
         if (journey.getVisibility() == JourneyVisibility.PRIVATE && participant == null && !isBoxMember && pendingStatus == null) {
             throw new BadRequestException("Đây là hành trình riêng tư.");
         }
@@ -343,7 +364,6 @@ public class JourneyServiceImpl implements JourneyService {
     @Override
     @Transactional(readOnly = true)
     public List<JourneyResponse> getMyJourneys(String userId) {
-        // Gom cả Journey của Box + Journey mà User là Guest
         List<Journey> visibleJourneys = journeyRepository.findAllJourneysForUser(userId);
         List<JourneyResponse> responses = visibleJourneys.stream().map(j -> {
             boolean isBoxMember = j.getBox() != null && isUserInBox(j.getBox().getId(), userId);
@@ -362,9 +382,6 @@ public class JourneyServiceImpl implements JourneyService {
     @Transactional
     public void leaveJourney(String journeyId, String userId) {
         Journey journey = getJourneyEntity(journeyId);
-        if (journey.getBox() != null && isUserInBox(journey.getBox().getId(), userId)) {
-            throw new BadRequestException("Bạn là thành viên Box nên không thể rời từng Hành trình lẻ. Vui lòng rời Box.");
-        }
         JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journeyId, userId).orElseThrow(() -> new BadRequestException("Bạn không tham gia (với tư cách Khách)"));
         if (p.getRole() == JourneyRole.OWNER) throw new BadRequestException("Chủ hành trình không thể rời đi.");
         participantRepository.delete(p);
@@ -375,7 +392,6 @@ public class JourneyServiceImpl implements JourneyService {
     public JourneyResponse updateJourney(String journeyId, CreateJourneyRequest request, String userId) {
         Journey journey = getJourneyEntity(journeyId);
         
-        // Chỉ Creator hoặc Owner mới được sửa
         boolean isCreator = journey.getCreator().getId().equals(userId);
         JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journeyId, userId).orElse(null);
         boolean isOwner = p != null && p.getRole() == JourneyRole.OWNER;
@@ -398,16 +414,21 @@ public class JourneyServiceImpl implements JourneyService {
     public void kickMember(String journeyId, String memberId, String requesterId) {
         Journey journey = getJourneyEntity(journeyId);
         boolean isCreator = journey.getCreator().getId().equals(requesterId);
-        if (!isCreator) throw new BadRequestException("Chỉ người tạo mới được kick.");
+        // [CẬP NHẬT] Quyền tối cao: Chủ Box được kick
+        boolean isBoxOwner = journey.getBox() != null && journey.getBox().getOwner().getId().equals(requesterId);
 
-        JourneyParticipant vic = participantRepository.findByJourneyIdAndUserId(journeyId, memberId).orElseThrow(() -> new ResourceNotFoundException("Thành viên không phải là Khách (Guest) trong hành trình này"));
+        if (!isCreator && !isBoxOwner) {
+            throw new BadRequestException("Chỉ người tạo hoặc Chủ Không gian mới được kick thành viên.");
+        }
+
+        JourneyParticipant vic = participantRepository.findByJourneyIdAndUserId(journeyId, memberId)
+                .orElseThrow(() -> new ResourceNotFoundException("Thành viên không phải là Khách (Guest) trong hành trình này"));
         participantRepository.delete(vic);
     }
 
     @Override
     @Transactional
     public void transferOwnership(String journeyId, String currentOwnerId, String newOwnerId) {
-        // Tính năng này có thể bỏ qua nếu đã dùng chung quyền Box
         JourneyParticipant owner = participantRepository.findByJourneyIdAndUserId(journeyId, currentOwnerId).orElseThrow(() -> new BadRequestException("Lỗi xác thực"));
         if (owner.getRole() != JourneyRole.OWNER) throw new BadRequestException("Không phải chủ.");
         JourneyParticipant newOwner = participantRepository.findByJourneyIdAndUserId(journeyId, newOwnerId).orElseThrow(() -> new BadRequestException("Người nhận không trong nhóm."));
@@ -426,7 +447,6 @@ public class JourneyServiceImpl implements JourneyService {
         Journey journey = getJourneyEntity(journeyId);
         List<JourneyParticipantResponse> responses = new ArrayList<>();
 
-        // 1. Thêm Box Members (Quyền kế thừa)
         if (journey.getBox() != null) {
             List<BoxMember> boxMembers = boxMemberRepository.findByBoxId(journey.getBox().getId());
             for (BoxMember bm : boxMembers) {
@@ -436,7 +456,6 @@ public class JourneyServiceImpl implements JourneyService {
             }
         }
 
-        // 2. Thêm Guests từ JourneyParticipant
         List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
         for (JourneyParticipant p : participants) {
             User u = p.getUser();
@@ -451,7 +470,13 @@ public class JourneyServiceImpl implements JourneyService {
     @Transactional
     public void deleteJourney(String journeyId, String userId) {
         Journey journey = getJourneyEntity(journeyId);
-        if (!journey.getCreator().getId().equals(userId)) throw new BadRequestException("Chỉ người tạo mới được xóa.");
+        boolean isCreator = journey.getCreator().getId().equals(userId);
+        // [CẬP NHẬT] Quyền tối cao: Chủ Box được giải tán Hành trình
+        boolean isBoxOwner = journey.getBox() != null && journey.getBox().getOwner().getId().equals(userId);
+
+        if (!isCreator && !isBoxOwner) {
+            throw new BadRequestException("Chỉ người tạo hoặc Chủ Không gian mới được xóa hành trình này.");
+        }
         journeyRepository.deleteById(journeyId);
     }
 
@@ -478,6 +503,12 @@ public class JourneyServiceImpl implements JourneyService {
         if (req.getStatus() != RequestStatus.PENDING) throw new BadRequestException("Đã xử lý.");
         
         User u = req.getUser();
+
+        // [CẬP NHẬT] Check trước khi duyệt, người này có trong Box không?
+        if (journey.getBox() != null && !isUserInBox(journey.getBox().getId(), u.getId())) {
+            throw new BadRequestException("Người dùng này không thuộc Không gian chứa hành trình.");
+        }
+
         if (!hasAccessToJourney(journey, u.getId())) {
             validateJourneyCapacity(journey);
             participantRepository.save(JourneyParticipant.builder().journey(journey).user(u).role(JourneyRole.GUEST).joinedAt(LocalDateTime.now()).build());
@@ -502,6 +533,7 @@ public class JourneyServiceImpl implements JourneyService {
         return JourneyStatus.ONGOING;
     }
 
+    // [CẬP NHẬT] Fix bug lấy sai Role của UI nếu user là participant trong Box
     private JourneyResponse mapToResponse(Journey journey, JourneyParticipant currentParticipant, boolean isBoxMember, String overrideRole) {
         long totalBoxMembers = journey.getBox() != null ? boxMemberRepository.countByBoxId(journey.getBox().getId()) : 0;
         long totalGuests = participantRepository.countByJourneyId(journey.getId());
@@ -509,13 +541,28 @@ public class JourneyServiceImpl implements JourneyService {
 
         JourneyResponse.CurrentUserStatus userStatus = null;
         
-        if (isBoxMember) {
-            userStatus = JourneyResponse.CurrentUserStatus.builder().role("BOX_MEMBER").currentStreak(0).totalCheckins(0).hasCheckedInToday(false).build();
-        } else if (currentParticipant != null) {
+        if (currentParticipant != null) {
             boolean checkedInToday = currentParticipant.getLastCheckinAt() != null && currentParticipant.getLastCheckinAt().toLocalDate().isEqual(LocalDate.now());
-            userStatus = JourneyResponse.CurrentUserStatus.builder().role(currentParticipant.getRole().name()).currentStreak(currentParticipant.getCurrentStreak()).totalCheckins(currentParticipant.getTotalCheckins()).hasCheckedInToday(checkedInToday).build();
+            userStatus = JourneyResponse.CurrentUserStatus.builder()
+                .role(currentParticipant.getRole().name())
+                .currentStreak(currentParticipant.getCurrentStreak())
+                .totalCheckins(currentParticipant.getTotalCheckins())
+                .hasCheckedInToday(checkedInToday)
+                .build();
+        } else if (isBoxMember) {
+            userStatus = JourneyResponse.CurrentUserStatus.builder()
+                .role("BOX_MEMBER")
+                .currentStreak(0)
+                .totalCheckins(0)
+                .hasCheckedInToday(false)
+                .build();
         } else if (overrideRole != null) {
-            userStatus = JourneyResponse.CurrentUserStatus.builder().role(overrideRole).currentStreak(0).totalCheckins(0).hasCheckedInToday(false).build();
+            userStatus = JourneyResponse.CurrentUserStatus.builder()
+                .role(overrideRole)
+                .currentStreak(0)
+                .totalCheckins(0)
+                .hasCheckedInToday(false)
+                .build();
         }
 
         String creatorId = (journey.getCreator() != null) ? String.valueOf(journey.getCreator().getId()) : null;

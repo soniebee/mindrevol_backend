@@ -8,9 +8,11 @@ import com.mindrevol.core.modules.checkin.dto.request.UpdateCheckinRequest;
 import com.mindrevol.core.modules.checkin.dto.response.CheckinReactionDetailResponse;
 import com.mindrevol.core.modules.checkin.dto.response.CheckinResponse;
 import com.mindrevol.core.modules.checkin.dto.response.CommentResponse;
-import com.mindrevol.core.modules.checkin.dto.response.MapMarkerResponse; // [THÊM MỚI]
+import com.mindrevol.core.modules.checkin.dto.response.MapMarkerResponse; 
 import com.mindrevol.core.modules.checkin.service.CheckinService;
 import com.mindrevol.core.modules.checkin.service.ReactionService;
+import com.mindrevol.core.modules.feed.dto.FeedItemResponse; // Import thêm
+import com.mindrevol.core.modules.feed.service.FeedService; // Import thêm
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.service.UserService;
 import jakarta.validation.Valid;
@@ -31,6 +33,7 @@ public class CheckinController {
     private final CheckinService checkinService;
     private final UserService userService;
     private final ReactionService reactionService;
+    private final FeedService feedService; // [THÊM MỚI] Inject FeedService
 
     // --- MAIN FEED ---
 
@@ -42,7 +45,15 @@ public class CheckinController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    // [THÊM MỚI] API lấy danh sách bài viết Lưu trữ cá nhân
+    // [THÊM MỚI] API lấy Grid Feed Hành trình (Bản thân + Bạn bè)
+    @GetMapping("/journeys/grid")
+    public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getJourneyGridFeed(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "18") int limit) {
+        String userId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(ApiResponse.success(feedService.getJourneyGridFeed(userId, page, limit)));
+    }
+
     @GetMapping("/me/archived")
     public ResponseEntity<ApiResponse<Page<CheckinResponse>>> getArchivedCheckins(Pageable pageable) {
         String userId = SecurityUtils.getCurrentUserId();
@@ -105,11 +116,9 @@ public class CheckinController {
     @PutMapping("/{checkinId}")
     public ResponseEntity<ApiResponse<CheckinResponse>> updateCheckin(
             @PathVariable String checkinId,
-            @RequestBody UpdateCheckinRequest request) { // [ĐÃ SỬA]
-        
+            @RequestBody UpdateCheckinRequest request) { 
         String userId = SecurityUtils.getCurrentUserId();
         User currentUser = userService.getUserById(userId);
-        
         return ResponseEntity.ok(ApiResponse.success(
             checkinService.updateCheckin(checkinId, request, currentUser)
         ));
@@ -123,10 +132,7 @@ public class CheckinController {
         return ResponseEntity.ok(ApiResponse.success(null, "Xóa bài viết thành công"));
     }
 
-    // =========================================================================
-    //  [THÊM MỚI] API BẢN ĐỒ KỶ NIỆM
-    // =========================================================================
-
+    // --- MAPS ---
     @GetMapping("/map/journey/{journeyId}")
     public ResponseEntity<ApiResponse<List<MapMarkerResponse>>> getMapMarkersForJourney(@PathVariable String journeyId) {
         User currentUser = (User) SecurityUtils.getCurrentUser();
