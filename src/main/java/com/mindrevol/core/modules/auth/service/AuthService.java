@@ -1,14 +1,10 @@
 package com.mindrevol.core.modules.auth.service;
 
 import com.mindrevol.core.modules.auth.dto.request.*;
-import com.mindrevol.core.modules.auth.dto.response.TwoFactorBackupCodesResponse;
-import com.mindrevol.core.modules.auth.dto.response.JwtResponse;
-import com.mindrevol.core.modules.auth.dto.response.TwoFactorEnableResponse;
-import com.mindrevol.core.modules.auth.dto.response.TwoFactorMethodResponse;
-import com.mindrevol.core.modules.auth.dto.response.TwoFactorSetupResponse;
-import com.mindrevol.core.modules.auth.dto.response.TwoFactorStatusResponse;
-import com.mindrevol.core.modules.auth.dto.response.StartTwoFactorMethodSetupResponse;
 import com.mindrevol.core.modules.auth.dto.response.ConfirmTwoFactorMethodResponse;
+import com.mindrevol.core.modules.auth.dto.response.JwtResponse;
+import com.mindrevol.core.modules.auth.dto.response.StartTwoFactorMethodSetupResponse;
+import com.mindrevol.core.modules.auth.dto.response.TwoFactorBackupCodesResponse;
 import com.mindrevol.core.modules.auth.dto.response.TwoFactorMethodStatusResponse;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,15 +31,6 @@ public interface AuthService {
     void sendOtpLogin(SendOtpRequest request);
     JwtResponse verifyOtpLogin(VerifyOtpRequest request, HttpServletRequest servletRequest);
 
-    TwoFactorSetupResponse setupTwoFactor(String userEmail, boolean revealSecret);
-    TwoFactorMethodResponse setupTwoFactorMethod(String userEmail, TwoFactorMethodRequest request);
-    void verifyTwoFactorEmail(String userEmail, TwoFactorVerifyEmailRequest request);
-    void resendTwoFactorEmailVerification(String userEmail);
-    TwoFactorEnableResponse enableTwoFactor(String userEmail, TwoFactorEnableRequest request);
-    TwoFactorBackupCodesResponse generateTwoFactorBackupCodes(String userEmail, TwoFactorGenerateBackupCodesRequest request);
-    String downloadTwoFactorBackupCodes(String userEmail);
-    void disableTwoFactor(String userEmail, TwoFactorDisableRequest request);
-    TwoFactorStatusResponse getTwoFactorStatus(String userEmail);
     JwtResponse verifyTwoFactorLogin(TwoFactorLoginVerifyRequest request, HttpServletRequest servletRequest);
     
     // --- NEW METHODS FOR MULTIPLE 2FA METHODS SUPPORT ---
@@ -68,8 +55,7 @@ public interface AuthService {
      */
     java.util.List<TwoFactorMethodStatusResponse> getTwoFactorMethods(String userEmail);
     
-    /**
-     * Resend email verification for EMAIL 2FA method
-     */
-    void resendEmailMethodVerification(String userEmail);
+    TwoFactorBackupCodesResponse generateTwoFactorBackupCodes(String userEmail, TwoFactorGenerateBackupCodesRequest request);
+    String downloadTwoFactorBackupCodes(String userEmail);
 }
+

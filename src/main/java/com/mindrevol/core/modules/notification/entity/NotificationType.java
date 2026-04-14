@@ -1,3 +1,4 @@
+
 package com.mindrevol.core.modules.notification.entity;
 
 public enum NotificationType {
@@ -34,9 +35,7 @@ public enum NotificationType {
     AUTH_NEW_LOGIN,
     PROFILE_UPDATED,
 
-<<<<<<< HEAD
-    UPLOAD_FAILED_RETRY, FRIEND_REQUEST, FRIEND_ACCEPTED, REACTION, COMMENT, SYSTEM, JOURNEY_INVITE
-=======
+
     UPLOAD_FAILED_RETRY, FRIEND_REQUEST, FRIEND_ACCEPTED, REACTION, COMMENT, SYSTEM, JOURNEY_INVITE, CHECKIN, BOX_ADDED, BOX_INVITE
->>>>>>> da7229e9c3c18523749c53bbb189c4aaa56dbebd
+
 }

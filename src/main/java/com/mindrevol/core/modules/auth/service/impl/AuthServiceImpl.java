@@ -1,7 +1,5 @@
 package com.mindrevol.core.modules.auth.service.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.common.service.AsyncTaskProducer;
@@ -18,7 +16,6 @@ import com.mindrevol.core.modules.auth.service.TwoFactorService;
 import com.mindrevol.core.modules.auth.service.strategy.SocialLoginFactory;
 import com.mindrevol.core.modules.auth.service.strategy.SocialLoginStrategy;
 import com.mindrevol.core.modules.auth.service.strategy.SocialProviderData;
-import com.mindrevol.core.modules.auth.util.AppleAuthUtil;
 import com.mindrevol.core.modules.auth.util.BackupCodeUtil;
 import com.mindrevol.core.modules.notification.dto.EmailTask;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
@@ -41,6 +38,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +58,10 @@ public class AuthServiceImpl implements AuthService {
     private static final String TWO_FACTOR_CHALLENGE_PREFIX = "auth:2fa:challenge:";
     private static final String TWO_FACTOR_SETUP_PREFIX = "auth:2fa:setup:";
     private static final String TWO_FACTOR_BACKUP_CODES_DOWNLOAD_PREFIX = "auth:2fa:backup-codes:download:";
+    private static final String TWO_FACTOR_CHALLENGE_ATTEMPT_PREFIX = "auth:2fa:challenge:attempt:";
+    private static final int TWO_FACTOR_MAX_VERIFY_ATTEMPTS = 5;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -214,7 +218,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Please wait " + expire + " seconds before requesting another code.");
         }
 
-        String newCode = String.format("%06d", new Random().nextInt(1_000_000));
+        String newCode = generateSixDigitCode();
         String otpKey = OTP_PREFIX + request.getEmail();
         String retryKey = OTP_RETRY_PREFIX + request.getEmail();
 
@@ -314,138 +318,6 @@ public class AuthServiceImpl implements AuthService {
         return completeLoginWithOptionalTwoFactor(user, request);
     }
 
-    // -------------------------------------------------------------------------
-    // 2FA setup / status
-    // -------------------------------------------------------------------------
-
-    @Override
-    public TwoFactorSetupResponse setupTwoFactor(String userEmail, boolean revealSecret) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        String secret = twoFactorService.generateSecret();
-        settings.setTwoFactorTempSecret(secret);
-        settings.setTwoFactorMethod("TOTP");
-        userSettingsRepository.save(settings);
-
-        String otpAuthUri = twoFactorService.buildOtpAuthUri(twoFactorIssuer, user.getEmail(), secret);
-        String qrCode = twoFactorService.generateQrCodeImage(otpAuthUri);
-
-        return TwoFactorSetupResponse.builder()
-                .otpAuthUri(otpAuthUri)
-                .qrCode(qrCode)
-                .secret(revealSecret ? secret : null)
-                .manualSecretVisible(revealSecret)
-                .build();
-    }
-
-    @Override
-    public TwoFactorMethodResponse setupTwoFactorMethod(String userEmail, TwoFactorMethodRequest request) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-        String method = normalizeTwoFactorMethod(request.getMethod());
-
-        if ("EMAIL".equals(method)) {
-            String email = resolveEmailForTwoFactor(user, request.getEmail());
-            String token = UUID.randomUUID().toString();
-
-            settings.setTwoFactorMethod("EMAIL");
-            settings.setTwoFactorEmail(email);
-            settings.setTwoFactorEmailVerified(false);
-            settings.setTwoFactorEmailVerificationToken(token);
-            settings.setTwoFactorEnabled(false);
-            userSettingsRepository.save(settings);
-
-            sendTwoFactorEmailVerification(email, token);
-
-            return TwoFactorMethodResponse.builder()
-                    .method("EMAIL")
-                    .message("Verification email sent.")
-                    .verificationToken(token)
-                    .build();
-        }
-
-        settings.setTwoFactorMethod("TOTP");
-        settings.setTwoFactorEmail(null);
-        settings.setTwoFactorEmailVerified(false);
-        settings.setTwoFactorEmailVerificationToken(null);
-        settings.setTwoFactorEnabled(false);
-        userSettingsRepository.save(settings);
-
-        return TwoFactorMethodResponse.builder()
-                .method("TOTP")
-                .message("TOTP selected. Call /api/v1/auth/2fa/setup to start.")
-                .build();
-    }
-
-    @Override
-    public void verifyTwoFactorEmail(String userEmail, TwoFactorVerifyEmailRequest request) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        if (!"EMAIL".equalsIgnoreCase(defaultMethod(settings.getTwoFactorMethod()))) {
-            throw new BadRequestException("Two-factor method is not EMAIL.");
-        }
-
-        if (settings.getTwoFactorEmailVerificationToken() == null
-                || !settings.getTwoFactorEmailVerificationToken().equals(request.getToken())) {
-            throw new BadRequestException("Invalid or expired verification token.");
-        }
-
-        settings.setTwoFactorEmailVerified(true);
-        settings.setTwoFactorEmailVerificationToken(null);
-        settings.setTwoFactorEnabled(true);
-        settings.setTwoFactorEnabledAt(LocalDateTime.now());
-        userSettingsRepository.save(settings);
-    }
-
-    @Override
-    public void resendTwoFactorEmailVerification(String userEmail) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        if (!"EMAIL".equalsIgnoreCase(defaultMethod(settings.getTwoFactorMethod()))) {
-            throw new BadRequestException("Two-factor method is not EMAIL.");
-        }
-
-        if (settings.getTwoFactorEmail() == null || settings.getTwoFactorEmail().isBlank()) {
-            throw new BadRequestException("Two-factor email is missing.");
-        }
-
-        String token = UUID.randomUUID().toString();
-        settings.setTwoFactorEmailVerificationToken(token);
-        settings.setTwoFactorEmailVerified(false);
-        userSettingsRepository.save(settings);
-
-        sendTwoFactorEmailVerification(settings.getTwoFactorEmail(), token);
-    }
-
-    @Override
-    public TwoFactorEnableResponse enableTwoFactor(String userEmail, TwoFactorEnableRequest request) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        if (settings.getTwoFactorTempSecret() == null || settings.getTwoFactorTempSecret().isBlank()) {
-            throw new BadRequestException("Two-factor setup is not initialized.");
-        }
-
-        boolean valid = twoFactorService.verifyCode(settings.getTwoFactorTempSecret(), request.getOtpCode(), twoFactorVerifyWindow);
-        if (!valid) {
-            throw new BadRequestException("Invalid OTP code.");
-        }
-
-        settings.setTwoFactorEnabled(true);
-        settings.setTwoFactorSecret(settings.getTwoFactorTempSecret());
-        settings.setTwoFactorTempSecret(null);
-        settings.setTwoFactorMethod("TOTP");
-        settings.setTwoFactorEnabledAt(LocalDateTime.now());
-        userSettingsRepository.save(settings);
-
-        return TwoFactorEnableResponse.builder()
-                .enabled(true)
-                .enabledAt(settings.getTwoFactorEnabledAt())
-                .build();
-    }
 
     @Override
     public TwoFactorBackupCodesResponse generateTwoFactorBackupCodes(String userEmail, TwoFactorGenerateBackupCodesRequest request) {
@@ -500,70 +372,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void disableTwoFactor(String userEmail, TwoFactorDisableRequest request) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        if (!settings.isTwoFactorEnabled()) {
-            return;
-        }
-
-        String otpCode = request != null ? request.getOtpCode() : null;
-        String backupCode = request != null ? request.getBackupCode() : null;
-        if (!isValidTwoFactorProof(settings, otpCode, backupCode)) {
-            throw new BadRequestException("Invalid OTP or backup code.");
-        }
-
-        clearTwoFactor(settings, true);
-        userSettingsRepository.save(settings);
-    }
-
-    @Override
-    public TwoFactorStatusResponse getTwoFactorStatus(String userEmail) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        List<BackupCodeStatusDto> backupCodes = backupCodeUtil.parseBackupCodes(settings.getTwoFactorBackupCodes());
-        int backupCodesLeft = backupCodeUtil.countUnusedCodes(backupCodes);
-        List<BackupCodeStatusDto> safeBackupCodes = buildSafeBackupCodeStatus(backupCodes);
-
-        List<TwoFactorMethodStatusResponse> methodStatuses = getTwoFactorMethods(userEmail);
-
-        boolean totpEnabled = methodStatuses.stream().anyMatch(s -> "TOTP".equals(s.getMethod()) && s.isEnabled());
-        boolean emailEnabled = methodStatuses.stream().anyMatch(s -> "EMAIL".equals(s.getMethod()) && s.isEnabled());
-        boolean backupEnabled = backupCodesLeft > 0;
-
-        List<String> enabledMethods = new ArrayList<>();
-        if (totpEnabled) {
-            enabledMethods.add("TOTP");
-        }
-        if (emailEnabled) {
-            enabledMethods.add("EMAIL");
-        }
-        if (backupEnabled) {
-            enabledMethods.add("BACKUP_CODES");
-        }
-
-        String currentMethod = settings.isTwoFactorEnabled() ? defaultMethod(settings.getTwoFactorMethod()) : null;
-
-        return TwoFactorStatusResponse.builder()
-                .enabled(settings.isTwoFactorEnabled())
-                .method(currentMethod)
-                .email(maskEmail(settings.getTwoFactorEmail()))
-                .backupCodesLeft(backupCodesLeft)
-                .enabledAt(settings.getTwoFactorEnabledAt())
-                .backupCodesList(safeBackupCodes)
-                .downloadBackupCodesUrl("/api/v1/auth/2fa/backup-codes/download")
-                .totpEnabled(totpEnabled)
-                .emailOtpEnabled(emailEnabled)
-                .backupCodesEnabled(backupEnabled)
-                .methodStatuses(methodStatuses)
-                .enabledMethods(enabledMethods)
-                .enabledMethodCount(enabledMethods.size())
-                .build();
-    }
-
-    @Override
     public JwtResponse verifyTwoFactorLogin(TwoFactorLoginVerifyRequest request, HttpServletRequest servletRequest) {
         Map<String, Object> challenge = getTwoFactorChallenge(request.getChallengeId());
         String userId = asString(challenge.get("userId"));
@@ -574,8 +382,24 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Invalid two-factor challenge.");
         }
 
+        if (isTwoFactorChallengeLocked(request.getChallengeId())) {
+            deleteTwoFactorChallenge(request.getChallengeId());
+            throw new BadRequestException("Too many invalid attempts. Please login again.");
+        }
+
         User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserSettings settings = getOrCreateSettings(user);
+
+        if (!settings.isTwoFactorEnabled()) {
+            deleteTwoFactorChallenge(request.getChallengeId());
+            throw new BadRequestException("Two-factor authentication is not enabled.");
+        }
+
+        String currentMethod = defaultMethod(settings.getTwoFactorMethod());
+        if (!challengeMethod.equals(currentMethod)) {
+            deleteTwoFactorChallenge(request.getChallengeId());
+            throw new BadRequestException("Two-factor challenge expired or invalid.");
+        }
 
         boolean validByOtp = false;
         if ("TOTP".equals(challengeMethod)) {
@@ -583,22 +407,25 @@ public class AuthServiceImpl implements AuthService {
                     && settings.getTwoFactorSecret() != null
                     && twoFactorService.verifyCode(settings.getTwoFactorSecret(), request.getOtpCode(), twoFactorVerifyWindow);
         } else if ("EMAIL".equals(challengeMethod)) {
+            String incomingCodeHash = twoFactorService.hashCode(request.getOtpCode());
             validByOtp = request.getOtpCode() != null
                     && challengeEmailCodeHash != null
-                    && challengeEmailCodeHash.equals(twoFactorService.hashCode(request.getOtpCode()));
+                    && secureHashEquals(challengeEmailCodeHash, incomingCodeHash);
         }
 
         boolean validByBackup = consumeBackupCode(settings, request.getBackupCode());
         if (!validByOtp && !validByBackup) {
+            registerTwoFactorChallengeFailure(request.getChallengeId());
             throw new BadRequestException("Invalid two-factor code.");
         }
 
         deleteTwoFactorChallenge(request.getChallengeId());
+        clearTwoFactorChallengeFailures(request.getChallengeId());
         return sessionService.createTokenAndSession(user, servletRequest);
     }
 
     // -------------------------------------------------------------------------
-    // New multi-method endpoints (compatibility wrappers)
+    // Canonical multi-method 2FA endpoints
     // -------------------------------------------------------------------------
 
     @Override
@@ -635,7 +462,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String email = resolveEmailForTwoFactor(user, request != null ? request.getEmail() : null);
-        String code = String.format("%06d", new Random().nextInt(1_000_000));
+        String code = generateSixDigitCode();
         setupPayload.put("email", email);
         setupPayload.put("emailCodeHash", twoFactorService.hashCode(code));
         redisTemplate.opsForValue().set(TWO_FACTOR_SETUP_PREFIX + setupToken, setupPayload, twoFactorChallengeTtlSeconds, TimeUnit.SECONDS);
@@ -754,7 +581,7 @@ public class AuthServiceImpl implements AuthService {
 
         String current = defaultMethod(settings.getTwoFactorMethod());
         if (!method.equals(current)) {
-            return;
+            throw new BadRequestException("Two-factor method is not active: " + method);
         }
 
         if (!isValidTwoFactorProof(settings, request.getOtpCode(), request.getBackupCode())) {
@@ -816,22 +643,6 @@ public class AuthServiceImpl implements AuthService {
         return result;
     }
 
-    @Override
-    public void resendEmailMethodVerification(String userEmail) {
-        User user = findUserByEmail(userEmail);
-        UserSettings settings = getOrCreateSettings(user);
-
-        String email = settings.getTwoFactorEmail();
-        if (email == null || email.isBlank()) {
-            email = user.getEmail();
-            settings.setTwoFactorEmail(email);
-            userSettingsRepository.save(settings);
-        }
-
-        String code = String.format("%06d", new Random().nextInt(1_000_000));
-        sendTwoFactorLoginCode(email, code);
-    }
-
     // -------------------------------------------------------------------------
     // Login challenge
     // -------------------------------------------------------------------------
@@ -839,7 +650,7 @@ public class AuthServiceImpl implements AuthService {
     private JwtResponse completeLoginWithOptionalTwoFactor(User user, HttpServletRequest servletRequest) {
         UserSettings settings = getOrCreateSettings(user);
 
-        if ("SOCIAL".equals(user.getAuthProvider()) || !settings.isTwoFactorEnabled()) {
+        if (!settings.isTwoFactorEnabled()) {
             return sessionService.createTokenAndSession(user, servletRequest);
         }
 
@@ -859,7 +670,7 @@ public class AuthServiceImpl implements AuthService {
                 throw new BadRequestException("Two-factor email is not verified.");
             }
 
-            String emailCode = String.format("%06d", new Random().nextInt(1_000_000));
+            String emailCode = generateSixDigitCode();
             challenge.put("emailCodeHash", twoFactorService.hashCode(emailCode));
             sendTwoFactorLoginCode(settings.getTwoFactorEmail(), emailCode);
         }
@@ -872,15 +683,11 @@ public class AuthServiceImpl implements AuthService {
         );
 
         List<String> methods = new ArrayList<>();
-        if ("EMAIL".equals(method)) {
-            methods.add("EMAIL_OTP");
-        } else {
-            methods.add("TOTP");
-        }
+        methods.add(method);
 
         int backupCodesLeft = backupCodeUtil.countUnusedCodes(backupCodeUtil.parseBackupCodes(settings.getTwoFactorBackupCodes()));
         if (backupCodesLeft > 0) {
-            methods.add("BACKUP_CODE");
+            methods.add("BACKUP_CODES");
         }
 
         return JwtResponse.builder()
@@ -919,9 +726,6 @@ public class AuthServiceImpl implements AuthService {
             return "TOTP";
         }
         String normalized = method.trim().toUpperCase(Locale.ROOT);
-        if ("EMAIL_OTP".equals(normalized)) {
-            return "EMAIL";
-        }
         if (!"TOTP".equals(normalized) && !"EMAIL".equals(normalized)) {
             throw new BadRequestException("Unsupported two-factor method: " + method);
         }
@@ -933,12 +737,6 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Method is required.");
         }
         String normalized = method.trim().toUpperCase(Locale.ROOT);
-        if ("EMAIL_OTP".equals(normalized)) {
-            return "EMAIL";
-        }
-        if ("BACKUP_CODE".equals(normalized)) {
-            return "BACKUP_CODES";
-        }
         if (!"TOTP".equals(normalized) && !"EMAIL".equals(normalized) && !"BACKUP_CODES".equals(normalized)) {
             throw new BadRequestException("Unsupported two-factor method: " + method);
         }
@@ -1016,7 +814,45 @@ public class AuthServiceImpl implements AuthService {
     private void deleteTwoFactorChallenge(String challengeId) {
         if (challengeId != null && !challengeId.isBlank()) {
             redisTemplate.delete(TWO_FACTOR_CHALLENGE_PREFIX + challengeId);
+            clearTwoFactorChallengeFailures(challengeId);
         }
+    }
+
+    private boolean secureHashEquals(String left, String right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(left.getBytes(StandardCharsets.UTF_8), right.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private boolean isTwoFactorChallengeLocked(String challengeId) {
+        Object raw = redisTemplate.opsForValue().get(TWO_FACTOR_CHALLENGE_ATTEMPT_PREFIX + challengeId);
+        int attempts = raw instanceof Number number ? number.intValue() : 0;
+        return attempts >= TWO_FACTOR_MAX_VERIFY_ATTEMPTS;
+    }
+
+    private void registerTwoFactorChallengeFailure(String challengeId) {
+        String attemptKey = TWO_FACTOR_CHALLENGE_ATTEMPT_PREFIX + challengeId;
+        Long attempts = redisTemplate.opsForValue().increment(attemptKey);
+
+        Long challengeTtl = redisTemplate.getExpire(TWO_FACTOR_CHALLENGE_PREFIX + challengeId, TimeUnit.SECONDS);
+        if (challengeTtl != null && challengeTtl > 0) {
+            redisTemplate.expire(attemptKey, challengeTtl, TimeUnit.SECONDS);
+        } else {
+            redisTemplate.expire(attemptKey, twoFactorChallengeTtlSeconds, TimeUnit.SECONDS);
+        }
+
+        if (attempts != null && attempts >= TWO_FACTOR_MAX_VERIFY_ATTEMPTS) {
+            deleteTwoFactorChallenge(challengeId);
+        }
+    }
+
+    private void clearTwoFactorChallengeFailures(String challengeId) {
+        redisTemplate.delete(TWO_FACTOR_CHALLENGE_ATTEMPT_PREFIX + challengeId);
+    }
+
+    private String generateSixDigitCode() {
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
     }
 
     private String asString(Object value) {
@@ -1034,32 +870,6 @@ public class AuthServiceImpl implements AuthService {
         return email.substring(0, 1) + "***" + email.substring(at);
     }
 
-    private List<BackupCodeStatusDto> buildSafeBackupCodeStatus(List<BackupCodeStatusDto> storedCodes) {
-        List<BackupCodeStatusDto> safeCodes = new ArrayList<>();
-        for (int i = 0; i < storedCodes.size(); i++) {
-            BackupCodeStatusDto code = storedCodes.get(i);
-            safeCodes.add(BackupCodeStatusDto.builder()
-                    .code("CODE-" + (i + 1))
-                    .used(code.isUsed())
-                    .usedAt(code.getUsedAt())
-                    .build());
-        }
-        return safeCodes;
-    }
-
-    private void sendTwoFactorEmailVerification(String email, String verificationToken) {
-        String subject = "MindRevol two-factor email verification";
-        String content = "<h3>Verify your 2FA email</h3>"
-                + "<p>Use this token to verify your email:</p>"
-                + "<p><b>" + verificationToken + "</b></p>";
-
-        asyncTaskProducer.submitEmailTask(EmailTask.builder()
-                .toEmail(email)
-                .subject(subject)
-                .content(content)
-                .retryCount(0)
-                .build());
-    }
 
     private void sendTwoFactorLoginCode(String email, String code) {
         String subject = "MindRevol login verification code";

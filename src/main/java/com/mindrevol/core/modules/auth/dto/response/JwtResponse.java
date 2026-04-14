@@ -20,8 +20,7 @@ public class JwtResponse {
     private boolean requiresTwoFactor = false;
     private String challengeId;
     private String message;
-    
-    // New field for multiple 2FA methods support
-    // Contains list of available methods: ["TOTP", "EMAIL_OTP", "BACKUP_CODE"]
+
+    // Available methods: ["TOTP", "EMAIL", "BACKUP_CODES"]
     private List<String> twoFactorMethods;
 }

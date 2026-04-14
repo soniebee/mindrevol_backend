@@ -29,6 +29,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -76,40 +77,25 @@ public class SecurityConfig {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // 1. PUBLIC ENDPOINTS - Auth & Registration
                 .requestMatchers(
-                        // Registration wizard endpoints
                         "/api/v1/auth/register/**",
                         "/api/v1/auth/check-email",
                         "/api/v1/auth/check-handle",
-                        "/api/v1/auth/send-otp",
-                        "/api/v1/auth/verify-otp",
-                        "/api/v1/auth/resend-otp",
                         "/api/v1/auth/complete",
-                        // Login endpoints
                         "/api/v1/auth/login",
                         "/api/v1/auth/login/**",
                         "/api/v1/auth/refresh-token",
-                        // Password reset endpoints
                         "/api/v1/auth/forgot-password",
-                        "/api/v1/auth/verify-reset-otp",
-                        "/api/v1/auth/reset-password"
+                        "/api/v1/auth/reset-password",
+                        "/api/v1/auth/magic-link",
+                        "/api/v1/auth/magic-login"
                 ).permitAll()
-
-                // 1.1 PUBLIC ENDPOINTS - OTP login send code
                 .requestMatchers(
                         HttpMethod.POST,
-                        "/api/v1/auth/otp/send"
+                        "/api/v1/auth/otp/send",
+                        "/api/v1/auth/otp/login",
+                        "/api/v1/auth/2fa/methods/verify-login"
                 ).permitAll()
-
-                // 1.2 PUBLIC ENDPOINTS - 2FA verify step (no JWT yet)
-                .requestMatchers(
-                        HttpMethod.POST,
-                        "/api/v1/auth/2fa/verify",
-                        "/api/v1/auth/login/2fa/verify"
-                ).permitAll()
-
-                // 2. PUBLIC ENDPOINTS - Others
                 .requestMatchers(
                         "/uploads/**",
                         "/v3/api-docs/**",
@@ -122,29 +108,17 @@ public class SecurityConfig {
                         "/api/v1/payment/webhook",
                         "/actuator/prometheus"
                 ).permitAll()
-
-                .requestMatchers(
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html"
-                    ).permitAll()
-
-                // 3. AUTHENTICATED ENDPOINTS - Auth & Session Management
                 .requestMatchers(
                         "/api/v1/auth/logout",
                         "/api/v1/auth/change-password",
-                        "/api/v1/auth/session",
-                        "/api/v1/auth/session/**"
+                        "/api/v1/auth/sessions",
+                        "/api/v1/auth/sessions/**"
                 ).authenticated()
-
-                // 4. SECURED API ENDPOINTS
                 .requestMatchers("/api/v1/**").authenticated()
                 .requestMatchers(HttpMethod.OPTIONS).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/files/upload").authenticated()
                 .anyRequest().authenticated()
             )
-            // [QUAN TRỌNG NHẤT] Sửa dòng này: TẮT LUÔN HTTP BASIC
-            // Để server lờ đi mọi user/pass rác mà Grafana gửi tới
             .httpBasic(AbstractHttpConfigurer::disable);
 
         http.authenticationProvider(authenticationProvider());
@@ -159,8 +133,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // Lấy danh sách origins từ properties hoặc dùng mặc định
+
         if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
             configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         } else {
@@ -170,9 +143,10 @@ public class SecurityConfig {
                 "http://localhost:5173"
             ));
         }
-        
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With", "Accept", "X-Rate-Limit-Remaining", "Retry-After", "Apikey", "X-Device-Id", "x-device-id"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With", "Accept", "Apikey", "X-Device-Id", "x-device-id"));
+        configuration.setExposedHeaders(List.of("X-Rate-Limit-Remaining", "Retry-After"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
