@@ -51,4 +51,8 @@ public interface CheckinService {
     List<MapMarkerResponse> getMyMapMarkers(User currentUser);
 
 	Page<CheckinResponse> getArchivedCheckins(User currentUser, Pageable pageable);
+
+	List<CheckinResponse> getJourneyPhotosForRecap(String journeyId);
+	
+	List<CheckinResponse> getMultipleJourneysPhotosForRecap(List<String> journeyIds);
 }

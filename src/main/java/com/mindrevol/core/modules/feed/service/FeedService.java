@@ -11,4 +11,6 @@ public interface FeedService {
     List<FeedItemResponse> getJourneyGridFeed(String userId, int page, int limit);
 
     void evictFeedCache(String userId);
+    
+    List<FeedItemResponse> injectContextualAds(List<FeedItemResponse> posts, int offset, int limit);
 }

@@ -11,8 +11,8 @@ import com.mindrevol.core.modules.checkin.dto.response.CommentResponse;
 import com.mindrevol.core.modules.checkin.dto.response.MapMarkerResponse; 
 import com.mindrevol.core.modules.checkin.service.CheckinService;
 import com.mindrevol.core.modules.checkin.service.ReactionService;
-import com.mindrevol.core.modules.feed.dto.FeedItemResponse; // Import thêm
-import com.mindrevol.core.modules.feed.service.FeedService; // Import thêm
+import com.mindrevol.core.modules.feed.dto.FeedItemResponse;
+import com.mindrevol.core.modules.feed.service.FeedService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.service.UserService;
 import jakarta.validation.Valid;
@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -33,7 +34,7 @@ public class CheckinController {
     private final CheckinService checkinService;
     private final UserService userService;
     private final ReactionService reactionService;
-    private final FeedService feedService; // [THÊM MỚI] Inject FeedService
+    private final FeedService feedService;
 
     // --- MAIN FEED ---
 
@@ -45,7 +46,6 @@ public class CheckinController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    // [THÊM MỚI] API lấy Grid Feed Hành trình (Bản thân + Bạn bè)
     @GetMapping("/journeys/grid")
     public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getJourneyGridFeed(
             @RequestParam(defaultValue = "0") int page,
@@ -62,22 +62,32 @@ public class CheckinController {
     }
 
     @GetMapping("/unified")
-    public ResponseEntity<ApiResponse<List<CheckinResponse>>> getUnifiedFeed(
-            @RequestParam(required = false) LocalDateTime cursor,
+    public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getUnifiedFeed(
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int limit) {
         String userId = SecurityUtils.getCurrentUserId();
-        User currentUser = userService.getUserById(userId);
-        return ResponseEntity.ok(ApiResponse.success(checkinService.getUnifiedFeed(currentUser, cursor, limit)));
+        int offset = page * limit; 
+        return ResponseEntity.ok(ApiResponse.success(feedService.getNewsFeed(userId, offset, limit)));
     }
 
     @GetMapping("/journey/{journeyId}")
-    public ResponseEntity<ApiResponse<List<CheckinResponse>>> getJourneyFeed(
+    public ResponseEntity<ApiResponse<List<FeedItemResponse>>> getJourneyFeed(
             @PathVariable String journeyId,
             @RequestParam(required = false) LocalDateTime cursor,
             @RequestParam(defaultValue = "10") int limit) {
+        
         String userId = SecurityUtils.getCurrentUserId();
         User currentUser = userService.getUserById(userId);
-        return ResponseEntity.ok(ApiResponse.success(checkinService.getJourneyFeedByCursor(journeyId, currentUser, cursor, limit)));
+        
+        List<CheckinResponse> checkins = checkinService.getJourneyFeedByCursor(journeyId, currentUser, cursor, limit);
+        
+        List<FeedItemResponse> feed = new ArrayList<>(checkins);
+
+        if (!currentUser.isPremium() && !feed.isEmpty()) {
+            feed = feedService.injectContextualAds(feed, 0, limit);
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(feed));
     }
 
     // --- INTERACTIONS ---
@@ -149,5 +159,20 @@ public class CheckinController {
     public ResponseEntity<ApiResponse<List<MapMarkerResponse>>> getMyMapMarkers() {
         User currentUser = (User) SecurityUtils.getCurrentUser();
         return ResponseEntity.ok(ApiResponse.success(checkinService.getMyMapMarkers(currentUser)));
+    }
+
+    // =========================================================================
+    // [THÊM MỚI] API lấy toàn bộ ảnh của hành trình để làm Recap
+    // =========================================================================
+    @GetMapping("/journey/{journeyId}/photos")
+    public ResponseEntity<ApiResponse<List<CheckinResponse>>> getJourneyPhotos(@PathVariable String journeyId) {
+        List<CheckinResponse> photos = checkinService.getJourneyPhotosForRecap(journeyId);
+        return ResponseEntity.ok(ApiResponse.success(photos, "Lấy danh sách ảnh hành trình thành công"));
+    }
+    
+    @PostMapping("/journeys/photos/batch")
+    public ResponseEntity<ApiResponse<List<CheckinResponse>>> getPhotosFromMultipleJourneys(@RequestBody List<String> journeyIds) {
+        List<CheckinResponse> photos = checkinService.getMultipleJourneysPhotosForRecap(journeyIds);
+        return ResponseEntity.ok(ApiResponse.success(photos, "Lấy danh sách ảnh tổng hợp thành công"));
     }
 }

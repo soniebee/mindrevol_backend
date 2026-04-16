@@ -17,7 +17,6 @@ import java.util.Optional;
 @Repository
 public interface CheckinRepository extends JpaRepository<Checkin, String> {
 
-	// [ĐÃ THÊM JOIN FETCH c.user] Lấy Grid feed Hành trình: Bài của bản thân + Bạn bè
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user WHERE c.journey IS NOT NULL " +
            "AND (c.user.id = :userId " +
            "OR c.user.id IN (SELECT f.addressee.id FROM Friendship f WHERE f.requester.id = :userId AND f.status = 'ACCEPTED') " +
@@ -25,74 +24,56 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
            "ORDER BY c.createdAt DESC")
     Page<Checkin> findJourneyGridFeed(@Param("userId") String userId, Pageable pageable);
 
-    // [THÊM MỚI] Lấy các bài viết Lưu trữ cá nhân (không thuộc hành trình nào)
     @Query("SELECT c FROM Checkin c WHERE c.user.id = :userId AND c.journey IS NULL ORDER BY c.createdAt DESC")
     Page<Checkin> findArchivedCheckinsByUser(@Param("userId") String userId, Pageable pageable);
 
-    // Phân trang lấy tất cả bài check-in trong một Hành trình (của tất cả mọi người)
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user WHERE c.journey.id = :journeyId ORDER BY c.createdAt DESC")
     Page<Checkin> findByJourneyIdOrderByCreatedAtDesc(@Param("journeyId") String journeyId, Pageable pageable);
 
-    // Lấy bài check-in mới nhất của một user trong một hành trình cụ thể
     Optional<Checkin> findTopByJourneyIdAndUserIdOrderByCreatedAtDesc(String journeyId, String userId);
     
-    // Lấy tất cả bài check-in trong một hành trình, sắp xếp theo ngày check-in thực tế
     List<Checkin> findByJourneyIdOrderByCheckinDateDesc(String journeyId);
 
-    // Lấy tất cả bài check-in của một user cụ thể trong một hành trình
     List<Checkin> findByJourneyIdAndUserId(String journeyId, String id);
     
-    // Lấy lịch sử check-in của một user trên toàn hệ thống
     List<Checkin> findAllByUserIdOrderByCreatedAtDesc(String userId);
 
-    // [THÊM MỚI - LOGIC TÀNG HÌNH]: Nếu người xem là người lạ (isViewerMember = false), 
-    // chỉ lấy những bài check-in của những user đã bật "Hiển thị công khai" (isProfileVisible = true)
     @Query("SELECT c FROM Checkin c " +
-           "JOIN JourneyParticipant jp ON c.journey.id = jp.journey.id AND c.user.id = jp.user.id " +
-           "WHERE c.journey.id = :journeyId " +
-           "AND (:isViewerMember = true OR jp.isProfileVisible = true) " +
-           "ORDER BY c.createdAt DESC")
-    List<Checkin> findVisibleCheckinsByJourneyId(@Param("journeyId") String journeyId, @Param("isViewerMember") boolean isViewerMember);
+    	       "LEFT JOIN JourneyParticipant jp ON c.journey.id = jp.journey.id AND c.user.id = jp.user.id " +
+    	       "WHERE c.journey.id = :journeyId " +
+    	       // Nếu là Viewer thì thấy hết. Nếu là người lạ, thì xem người đó có bật public không (nếu là guest), 
+    	       // hoặc mặc định cho phép xem nếu họ là Box Member (jp.id IS NULL)
+    	       "AND (:isViewerMember = true OR jp.isProfileVisible = true OR jp.id IS NULL) " +
+    	       "ORDER BY c.createdAt DESC")
+    	List<Checkin> findVisibleCheckinsByJourneyId(@Param("journeyId") String journeyId, @Param("isViewerMember") boolean isViewerMember);
 
-    // Lấy bảng tin tổng hợp (Unified Feed) sử dụng Cursor Pagination (hiệu suất cao hơn Page/Offset).
-    // Bỏ qua các user nằm trong danh sách excludedUserIds (thường là những người bị block).
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user u WHERE c.journey.id IN (SELECT p.journey.id FROM JourneyParticipant p WHERE p.user.id = :userId) AND c.createdAt >= :sinceDate AND c.createdAt <= :cursor AND u.id NOT IN :excludedUserIds ORDER BY c.createdAt DESC")
     List<Checkin> findUnifiedFeedRecent(@Param("userId") String userId, @Param("sinceDate") LocalDateTime sinceDate, @Param("cursor") LocalDateTime cursor, @Param("excludedUserIds") Collection<String> excludedUserIds, Pageable pageable);
 
-    // Cursor Pagination lấy bảng tin dành riêng cho một hành trình
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user u WHERE c.journey.id = :journeyId AND c.createdAt <= :cursor AND u.id NOT IN :excludedUserIds ORDER BY c.createdAt DESC")
     List<Checkin> findJourneyFeedByCursor(@Param("journeyId") String journeyId, @Param("cursor") LocalDateTime cursor, @Param("excludedUserIds") Collection<String> excludedUserIds, Pageable pageable);
     
-    // Tìm các ngày mà user ĐÃ THỰC SỰ check-in hợp lệ (không tính trạng thái vắng mặt)
     @Query("SELECT c.createdAt FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId AND c.status IN ('NORMAL', 'LATE', 'COMEBACK', 'REST') ORDER BY c.createdAt DESC")
     List<LocalDateTime> findValidCheckinDates(@Param("journeyId") String journeyId, @Param("userId") String userId);
 
-    // Phân trang lấy danh sách bài check-in của chính mình trong 1 hành trình
     @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId ORDER BY c.createdAt DESC")
     Page<Checkin> findMyCheckinsInJourney(@Param("journeyId") String journeyId, @Param("userId") String userId, Pageable pageable);
 
-    // Lấy các bài check-in CÓ HÌNH ẢNH để hiển thị trong mục Thư viện/Gallery của hành trình
     @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED'")
     List<Checkin> findMediaByJourneyId(@Param("journeyId") String journeyId);
 
-    // --- CÁC HÀM LẤY TỌA ĐỘ BẢN ĐỒ (MARKERS) ---
-    // Bản đồ hành trình (chỉ lấy bài có tọa độ GPS)
     @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL AND c.status <> 'REST'")
     List<Checkin> findMapMarkersByJourney(@Param("journeyId") String journeyId);
 
-    // Bản đồ Box (tổng hợp tọa độ của tất cả hành trình trong Box)
     @Query("SELECT c FROM Checkin c WHERE c.journey.box.id = :boxId AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL AND c.status <> 'REST'")
     List<Checkin> findMapMarkersByBox(@Param("boxId") String boxId);
     
-    // Bản đồ cá nhân của User
     @Query("SELECT c FROM Checkin c WHERE c.user.id = :userId AND c.latitude IS NOT NULL AND c.longitude IS NOT NULL AND c.status <> 'REST'")
     List<Checkin> findMapMarkersByUser(@Param("userId") String userId);
     
-    // Lấy nhanh một vài hình ảnh preview của hành trình
     @org.springframework.data.jpa.repository.Query("SELECT c.imageUrl FROM Checkin c WHERE c.journey.id = :journeyId AND c.imageUrl IS NOT NULL AND c.imageUrl != '' ORDER BY c.createdAt DESC")
     java.util.List<String> findPreviewImagesByJourneyId(@org.springframework.data.repository.query.Param("journeyId") String journeyId, org.springframework.data.domain.Pageable pageable);
     
-    // Truy vấn Native SQL phức tạp: Lấy DỮ LIỆU LỊCH (Calendar Recap) cho một tháng cụ thể.
     @Query(value = "SELECT " +
             "  CAST(EXTRACT(DAY FROM created_at) AS INTEGER) AS day, " +
             "  image_url AS imageUrl, " +
@@ -113,8 +94,23 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
                                                  @Param("year") int year, 
                                                  @Param("month") int month);
     
-    // Đếm tổng số bài đăng của một user
     long countByUserIdAndDeletedAtIsNull(String userId);
     
     long countByUserId(String userId);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByJourneyIdForRecap(@Param("journeyId") String journeyId);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByJourneyIdAndUserId(@Param("journeyId") String journeyId, @Param("userId") String userId);
+
+    // =========================================================================
+    // [THÊM MỚI] CÁC HÀM LẤY ẢNH TỪ NHIỀU HÀNH TRÌNH CÙNG LÚC (GLOBAL RECAP)
+    // =========================================================================
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id IN :journeyIds AND c.imageUrl IS NOT NULL AND c.imageUrl != '' AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByMultipleJourneyIds(@Param("journeyIds") List<String> journeyIds);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id IN :journeyIds AND c.user.id = :userId AND c.imageUrl IS NOT NULL AND c.imageUrl != '' AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByMultipleJourneyIdsAndUserId(@Param("journeyIds") List<String> journeyIds, @Param("userId") String userId);
 }

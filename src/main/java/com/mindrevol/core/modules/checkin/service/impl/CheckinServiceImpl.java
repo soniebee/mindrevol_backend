@@ -9,7 +9,6 @@ import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
 import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
 import com.mindrevol.core.modules.checkin.entity.Emotion;
 import com.mindrevol.core.modules.checkin.entity.MediaType;
-import com.mindrevol.core.modules.checkin.service.impl.CheckinServiceImpl;
 import com.mindrevol.core.common.constant.AppConstants;
 import com.mindrevol.core.common.event.CheckinSuccessEvent;
 import com.mindrevol.core.common.exception.BadRequestException;
@@ -22,15 +21,14 @@ import com.mindrevol.core.modules.checkin.dto.response.CheckinReactionDetailResp
 import com.mindrevol.core.modules.checkin.dto.response.CheckinResponse;
 import com.mindrevol.core.modules.checkin.dto.response.CommentResponse;
 import com.mindrevol.core.modules.checkin.dto.response.MapMarkerResponse; 
-import com.mindrevol.core.modules.checkin.entity.*;
-import com.mindrevol.core.modules.checkin.event.CheckinDeletedEvent;
-import com.mindrevol.core.modules.checkin.event.CommentPostedEvent;
 import com.mindrevol.core.modules.checkin.mapper.CheckinMapper;
 import com.mindrevol.core.modules.checkin.repository.CheckinCommentRepository;
 import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
-import com.mindrevol.core.modules.checkin.repository.SavedCheckinRepository; // [THÊM MỚI]
+import com.mindrevol.core.modules.checkin.repository.SavedCheckinRepository;
 import com.mindrevol.core.modules.checkin.service.CheckinService;
 import com.mindrevol.core.modules.checkin.service.ReactionService;
+import com.mindrevol.core.modules.checkin.event.CheckinDeletedEvent;
+import com.mindrevol.core.modules.checkin.event.CommentPostedEvent;
 import com.mindrevol.core.modules.journey.entity.Journey;
 import com.mindrevol.core.modules.journey.entity.JourneyParticipant;
 import com.mindrevol.core.modules.journey.repository.JourneyParticipantRepository;
@@ -50,7 +48,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -70,7 +67,7 @@ public class CheckinServiceImpl implements CheckinService {
     private final SavedCheckinRepository savedCheckinRepository; 
     private final JourneyRepository journeyRepository;
     private final JourneyParticipantRepository participantRepository;
-    private final BoxMemberRepository boxMemberRepository; // [THÊM MỚI]
+    private final BoxMemberRepository boxMemberRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
     private final CheckinMapper checkinMapper;
@@ -102,7 +99,6 @@ public class CheckinServiceImpl implements CheckinService {
         return response;
     }
 
-    // [THÊM MỚI] Helper check quyền truy cập (Gộp Box Member + Guest)
     private boolean hasAccessToJourney(Journey journey, String userId) {
         if (journey.getBox() != null && boxMemberRepository.existsByBoxIdAndUserId(journey.getBox().getId(), userId)) {
             return true;
@@ -133,10 +129,8 @@ public class CheckinServiceImpl implements CheckinService {
             journey = journeyRepository.findById(request.getJourneyId())
                     .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
 
-            // [SỬA LOGIC CHECK QUYỀN Ở ĐÂY]
             boolean isBoxMember = journey.getBox() != null && boxMemberRepository.existsByBoxIdAndUserId(journey.getBox().getId(), currentUser.getId());
             
-            // Tìm thử xem có phải là Guest không (nếu là Box Member thì hàm này trả về null là bình thường)
             participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId()).orElse(null);
 
             if (!isBoxMember && participant == null) {
@@ -269,8 +263,6 @@ public class CheckinServiceImpl implements CheckinService {
 
         checkin = checkinRepository.save(checkin);
         
-        // Chỉ cập nhật participant stats (streak) nếu họ là GUEST (có object participant). 
-        // Box Member (participant = null) không cập nhật streak ở bảng này nữa.
         if (participant != null) {
             updateParticipantStats(participant, finalStatus, todayLocal);
         }
@@ -330,7 +322,6 @@ public class CheckinServiceImpl implements CheckinService {
     @Transactional(readOnly = true)
     public Page<CheckinResponse> getJourneyFeed(String journeyId, Pageable pageable, User currentUser) {
         Journey journey = journeyRepository.findById(journeyId).orElseThrow(() -> new ResourceNotFoundException("Not found"));
-        // [ĐÃ SỬA] Dùng hàm hasAccessToJourney để check chung cho cả Box Member và Guest
         if (!hasAccessToJourney(journey, currentUser.getId())) {
             throw new BadRequestException("Không có quyền xem");
         }
@@ -365,7 +356,6 @@ public class CheckinServiceImpl implements CheckinService {
     @Transactional(readOnly = true)
     public List<CheckinResponse> getJourneyFeedByCursor(String journeyId, User currentUser, LocalDateTime cursor, int limit) {
         Journey journey = journeyRepository.findById(journeyId).orElseThrow(() -> new ResourceNotFoundException("Not found"));
-        // [ĐÃ SỬA]
         if (!hasAccessToJourney(journey, currentUser.getId())) {
             throw new BadRequestException("Bạn không có quyền xem hành trình này");
         }
@@ -433,7 +423,6 @@ public class CheckinServiceImpl implements CheckinService {
                 Journey journey = journeyRepository.findById(request.getJourneyId())
                         .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
 
-                // [SỬA LOGIC CHECK QUYỀN MỚI]
                 boolean isBoxMember = journey.getBox() != null && boxMemberRepository.existsByBoxIdAndUserId(journey.getBox().getId(), currentUser.getId());
                 participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId()).orElse(null);
 
@@ -448,7 +437,6 @@ public class CheckinServiceImpl implements CheckinService {
 
         checkin = checkinRepository.save(checkin);
 
-        // Chỉ tính toán lại streak nếu họ là GUEST (vì box member không lưu streak ở bảng participant nữa)
         if (isMovedToJourney && participant != null) {
             checkinRepository.flush();
             recalculateParticipantStats(participant, currentUser);
@@ -478,7 +466,6 @@ public class CheckinServiceImpl implements CheckinService {
         }
 
         if (journey != null) {
-            // Nếu là GUEST thì sẽ tìm thấy để recalculate, nếu là BOX_MEMBER thì kệ nó (ko báo lỗi)
             participantRepository.findByJourneyIdAndUserId(journey.getId(), checkin.getUser().getId())
                     .ifPresent(participant -> recalculateParticipantStats(participant, checkin.getUser()));
         }
@@ -539,7 +526,6 @@ public class CheckinServiceImpl implements CheckinService {
     @Transactional(readOnly = true)
     public List<MapMarkerResponse> getMapMarkersForJourney(String journeyId, User currentUser) {
         Journey journey = journeyRepository.findById(journeyId).orElseThrow(() -> new ResourceNotFoundException("Not found"));
-        // [ĐÃ SỬA]
         if (!hasAccessToJourney(journey, currentUser.getId())) {
             throw new BadRequestException("Bạn không có quyền xem dữ liệu của hành trình này");
         }
@@ -587,5 +573,30 @@ public class CheckinServiceImpl implements CheckinService {
                 .fullname(c.getUser().getFullname())
                 .build()
         ).collect(Collectors.toList());
+    }
+
+    // =========================================================================
+    // [THÊM MỚI] Lấy danh sách ảnh của hành trình để làm Recap
+    // =========================================================================
+    @Override
+    @Transactional(readOnly = true)
+    public List<CheckinResponse> getJourneyPhotosForRecap(String journeyId) {
+        List<Checkin> checkins = checkinRepository.findMediaByJourneyIdForRecap(journeyId);
+        return checkins.stream()
+                .map(checkinMapper::toResponse)
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<CheckinResponse> getMultipleJourneysPhotosForRecap(List<String> journeyIds) {
+        if (journeyIds == null || journeyIds.isEmpty()) return new ArrayList<>();
+        
+        // Gọi hàm query IN :journeyIds mà ta đã viết ở CheckinRepository
+        List<Checkin> checkins = checkinRepository.findMediaByMultipleJourneyIds(journeyIds);
+        
+        return checkins.stream()
+                .map(checkinMapper::toResponse)
+                .collect(Collectors.toList());
     }
 }

@@ -134,30 +134,52 @@ public class JourneyServiceImpl implements JourneyService {
     public List<UserActiveJourneyResponse> getUserPublicJourneys(String targetUserId, String currentUserId) {
         User targetUser = userRepository.findById(targetUserId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        // Kiểm tra quyền xem nếu không phải chính mình
         if (!targetUserId.equals(currentUserId)) {
             List<Friendship> friends = friendshipRepository.findAllAcceptedFriendsList(currentUserId);
             boolean isFriend = (friends != null) && friends.stream().anyMatch(f -> f.getFriend(currentUserId).getId().equals(targetUserId));
             if (!isFriend) return new ArrayList<>(); 
         }
 
-        List<Journey> publicJourneys = journeyRepository.findPublicJourneysByUserId(targetUserId);
-        return publicJourneys.stream().map(journey -> {
-            JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
-            return mapSingleJourneyToResponse(journey, p, currentUserId);
-        }).collect(Collectors.toList());
+        LocalDate today = getTodayInUserTimezone(targetUser);
+        
+        // Lấy TẤT CẢ hành trình đang hoạt động
+        List<Journey> allJourneys = journeyRepository.findActiveJourneysByUserIdWithMembers(targetUserId, today);
+        
+        return allJourneys.stream()
+                .distinct() // BẢO HIỂM 1: Loại bỏ ngay lập tức các hành trình bị DB trả về trùng lặp
+                .map(journey -> {
+                    JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
+                    return mapSingleJourneyToResponse(journey, p, currentUserId);
+                })
+                // BẢO HIỂM 2: Chỉ giữ lại Hành trình có Visibility là PUBLIC VÀ user đang BẬT hiển thị (isProfileVisible = true)
+                .filter(res -> "PUBLIC".equalsIgnoreCase(res.getVisibility()) && res.isProfileVisible())
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<UserActiveJourneyResponse> getUserPrivateJourneys(String targetUserId, String currentUserId) {
+        // Tab riêng tư thì chỉ có chủ nhân mới được xem
         if (!targetUserId.equals(currentUserId)) {
             throw new BadRequestException("Bạn không có quyền xem hành trình riêng tư của người khác.");
         }
-        List<Journey> privateJourneys = journeyRepository.findPrivateJourneysByUserId(targetUserId);
-        return privateJourneys.stream().map(journey -> {
-            JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
-            return mapSingleJourneyToResponse(journey, p, currentUserId);
-        }).collect(Collectors.toList());
+        
+        User targetUser = userRepository.findById(targetUserId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        LocalDate today = getTodayInUserTimezone(targetUser);
+        
+        // Lấy TẤT CẢ hành trình đang hoạt động
+        List<Journey> allJourneys = journeyRepository.findActiveJourneysByUserIdWithMembers(targetUserId, today);
+
+        return allJourneys.stream()
+                .distinct() // BẢO HIỂM 1: Loại bỏ hành trình nhân đôi từ DB
+                .map(journey -> {
+                    JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
+                    return mapSingleJourneyToResponse(journey, p, currentUserId);
+                })
+                // BẢO HIỂM 2: Tab riêng tư sẽ chứa: (Hành trình vốn dĩ là PRIVATE) HOẶC (Hành trình PUBLIC nhưng bị user ẨN ĐI)
+                .filter(res -> "PRIVATE".equalsIgnoreCase(res.getVisibility()) || !res.isProfileVisible())
+                .collect(Collectors.toList());
     }
 
     private UserActiveJourneyResponse mapSingleJourneyToResponse(Journey journey, JourneyParticipant targetParticipant, String currentUserId) {
