@@ -10,4 +10,5 @@ public class UpdateBoxRequest {
     private String description;
     private String themeSlug;
     private String avatar;
+    private String textPosition;
 }

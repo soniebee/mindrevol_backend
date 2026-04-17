@@ -13,5 +13,6 @@ public interface ChatMapper {
     @Mapping(target = "senderAvatar", source = "sender.avatarUrl")
     @Mapping(target = "createdAt", source = "createdAt")
     @Mapping(target = "isDeleted", source = "deleted") 
+    @Mapping(target = "replyToMsgId", source = "replyToMsgId")
     MessageResponse toResponse(Message message);
 }

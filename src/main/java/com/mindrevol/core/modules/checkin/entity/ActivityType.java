@@ -2,8 +2,8 @@ package com.mindrevol.core.modules.checkin.entity;
 
 public enum ActivityType {
     DEFAULT,    // Mặc định (Không chọn gì)
-    LEARNING,   // Học tập
-    WORKING,    // Làm việc
+    LEARNING,   // Học tập 
+    WORKING,    // Làm việc 
     EXERCISING, // Tập luyện
     TRAVELING,  // Di chuyển/Du lịch
     DATING,     // Hẹn hò/Tình cảm

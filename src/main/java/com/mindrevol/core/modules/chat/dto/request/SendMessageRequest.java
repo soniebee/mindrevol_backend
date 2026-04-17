@@ -20,4 +20,8 @@ public class SendMessageRequest {
     private Map<String, Object> metadata;
     
     private String clientSideId;
+    
+    private String conversationId;
+    
+    private String replyToMsgId;
 }

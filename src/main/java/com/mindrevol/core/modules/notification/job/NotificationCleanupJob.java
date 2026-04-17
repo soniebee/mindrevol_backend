@@ -16,19 +16,20 @@ public class NotificationCleanupJob {
 
     private final NotificationRepository notificationRepository;
 
-    // Chạy vào lúc 02:00 sáng mỗi ngày
+    // Chạy tự động vào lúc 2h sáng mỗi ngày
     @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
     public void cleanupOldNotifications() {
-        log.info("Bắt đầu dọn dẹp các thông báo cũ...");
+        log.info("Bắt đầu dọn dẹp thông báo cũ (Notification Cleanup Job)...");
 
-        // Xóa các thông báo ĐÃ ĐỌC và cũ hơn 30 ngày
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(30);
-        try {
-            notificationRepository.deleteOldReadNotifications(cutoffDate);
-            log.info("Đã dọn dẹp xong thông báo cũ hơn 30 ngày.");
-        } catch (Exception e) {
-            log.error("Lỗi khi dọn dẹp thông báo: ", e);
-        }
+        // 1. Xóa cứng thông báo ĐÃ ĐỌC sau 30 ngày
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        int deletedRead = notificationRepository.deleteOldReadNotifications(thirtyDaysAgo);
+
+        // 2. Xóa cứng thông báo CHƯA ĐỌC sau 60 ngày
+        LocalDateTime sixtyDaysAgo = LocalDateTime.now().minusDays(60);
+        int deletedUnread = notificationRepository.deleteOldUnreadNotifications(sixtyDaysAgo);
+
+        log.info("Hoàn tất dọn dẹp hệ thống: Đã xóa {} thông báo đã đọc, {} thông báo chưa đọc.", deletedRead, deletedUnread);
     }
 }

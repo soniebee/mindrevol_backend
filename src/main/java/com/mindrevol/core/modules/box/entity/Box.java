@@ -1,7 +1,6 @@
 package com.mindrevol.core.modules.box.entity;
 
-import com.mindrevol.core.common.entity.BaseEntity; // Lưu ý package BaseEntity có typo 'enitty' theo code cũ của bạn
-import com.mindrevol.core.modules.journey.entity.Journey;
+import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
@@ -30,6 +29,10 @@ public class Box extends BaseEntity {
 
     @Column(name = "theme_slug", length = 50)
     private String themeSlug; // Ví dụ: "farm-theme", "cafe-theme"
+
+    // Lưu vị trí tên box (vd: "top-left", "center", "bottom-right")
+    @Column(name = "text_position", length = 50)
+    private String textPosition;
 
     @Column(name = "last_activity_at")
     private LocalDateTime lastActivityAt; // Cập nhật khi có tin nhắn hoặc ảnh mới

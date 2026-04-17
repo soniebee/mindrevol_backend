@@ -9,10 +9,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-
 public interface BoxRepository extends JpaRepository<Box, String> {
-
-    // Tìm các Box mà User là thành viên và sắp xếp theo hoạt động mới nhất
-    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId ORDER BY b.lastActivityAt DESC")
+    // Lấy danh sách các Box mà user đang là thành viên
+    @Query("SELECT b FROM Box b JOIN b.members m WHERE m.user.id = :userId")
     Page<Box> findMyBoxes(@Param("userId") String userId, Pageable pageable);
 }
