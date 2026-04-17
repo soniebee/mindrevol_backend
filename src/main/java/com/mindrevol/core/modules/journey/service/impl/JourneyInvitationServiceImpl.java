@@ -47,10 +47,10 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     @Transactional
     public void inviteFriendToJourney(String inviterId, String journeyId, String friendId) {
         User inviter = userRepository.findById(inviterId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Journey journey = journeyRepository.findById(journeyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Journey not found"));
 
         // [CẬP NHẬT] Kiểm tra bạn bè được mời có nằm trong Box không
         if (journey.getBox() != null) {
@@ -61,11 +61,11 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
         }
 
         JourneyParticipant inviterParticipant = participantRepository.findByJourneyIdAndUserId(journeyId, inviterId)
-                .orElseThrow(() -> new BadRequestException("Bạn không phải thành viên của hành trình này"));
+                .orElseThrow(() -> new BadRequestException("You are not a member of this journey"));
 
         if (journey.getVisibility() == JourneyVisibility.PRIVATE) {
             if (inviterParticipant.getRole() != JourneyRole.OWNER) {
-                throw new BadRequestException("Hành trình riêng tư: Chỉ chủ phòng mới được mời thành viên.");
+                throw new BadRequestException("Private journey: only the owner can invite members.");
             }
         }
 
@@ -74,18 +74,18 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
         
         long currentMembers = participantRepository.countByJourneyId(journeyId);
         if (currentMembers >= limit) {
-            throw new BadRequestException("Hành trình đã đạt giới hạn thành viên (" + limit + " người). Chủ phòng cần nâng cấp Gold để mở rộng.");
+            throw new BadRequestException("Journey has reached the member limit (" + limit + "). The owner needs to upgrade to Gold to expand it.");
         }
 
         User friend = userRepository.findById(friendId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (participantRepository.existsByJourneyIdAndUserId(journeyId, friendId)) {
-            throw new BadRequestException("Người này đã tham gia hành trình rồi");
+            throw new BadRequestException("This user has already joined the journey");
         }
 
         if (invitationRepository.existsByJourneyIdAndInviteeIdAndStatus(journeyId, friendId, JourneyInvitationStatus.PENDING)) {
-            throw new BadRequestException("Đã gửi lời mời cho người này rồi, hãy chờ họ phản hồi");
+            throw new BadRequestException("An invitation has already been sent to this user. Please wait for their response.");
         }
 
         JourneyInvitation invitation = JourneyInvitation.builder()
@@ -101,8 +101,8 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
                 friend.getId(),
                 inviter.getId(),
                 NotificationType.JOURNEY_INVITE,
-                "Lời mời tham gia hành trình 🚀",
-                inviter.getFullname() + " mời bạn tham gia: " + journey.getName(),
+                "Journey invitation: " + journey.getName(),
+                inviter.getFullname() + " invited you to join: " + journey.getName(),
                 journey.getId(), 
                 inviter.getAvatarUrl(),
                 "noti.journey.invite",
@@ -116,13 +116,13 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     @Transactional
     public void acceptInvitation(String currentUserId, String invitationId) {
         User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JourneyInvitation invitation = invitationRepository.findByIdAndInviteeId(invitationId, currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại hoặc không dành cho bạn"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found or not assigned to you"));
 
         if (invitation.getStatus() != JourneyInvitationStatus.PENDING) {
-            throw new BadRequestException("Lời mời này đã được xử lý hoặc hết hạn");
+            throw new BadRequestException("This invitation has already been processed or expired");
         }
 
         Journey journey = invitation.getJourney();
@@ -132,7 +132,7 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
         
         long currentMembers = participantRepository.countByJourneyId(journey.getId());
         if (currentMembers >= limit) {
-             throw new BadRequestException("Rất tiếc, hành trình này vừa đủ người rồi (" + limit + " thành viên).");
+             throw new BadRequestException("Sorry, this journey is already full (" + limit + " members).");
         }
 
         if (participantRepository.existsByJourneyIdAndUserId(journey.getId(), currentUserId)) {
@@ -173,10 +173,10 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     @Transactional
     public void rejectInvitation(String currentUserId, String invitationId) {
         JourneyInvitation invitation = invitationRepository.findByIdAndInviteeId(invitationId, currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
 
         if (invitation.getStatus() != JourneyInvitationStatus.PENDING) {
-            throw new BadRequestException("Lời mời không hợp lệ");
+            throw new BadRequestException("Invalid invitation");
         }
 
         invitation.setStatus(JourneyInvitationStatus.REJECTED);
