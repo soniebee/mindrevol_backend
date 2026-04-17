@@ -14,10 +14,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -25,7 +27,6 @@ import java.util.Map;
 public class NotificationDispatchService {
 
     private final AsyncTaskProducer asyncTaskProducer;
-    // BỔ SUNG: Tiêm repository để lấy cài đặt người dùng
     private final UserSettingsRepository userSettingsRepository;
     private final UserPresenceService userPresenceService;
 
@@ -34,26 +35,20 @@ public class NotificationDispatchService {
             return;
         }
 
-        // TASK-404: Nếu người nhận đang online thì không đẩy push chat để tránh spam.
         if ((notification.getType() == NotificationType.DM_NEW_MESSAGE || notification.getType() == NotificationType.BOXCHAT_NEW_MESSAGE)
                 && userPresenceService.isUserOnline(recipient.getId())) {
             return;
         }
 
-        // --- BẮT ĐẦU LOGIC TASK 201 & 202 ---
         UserSettings settings = userSettingsRepository.findByUserId(recipient.getId()).orElse(null);
         if (settings != null) {
-            // Category-only settings: nếu danh mục tắt thì bỏ qua push.
             if (!isCategoryTypeAllowed(settings, notification.getType())) {
                 return;
             }
-
-            // Kiểm tra chế độ Không làm phiền (DND)
             if (isDndActive(settings, recipient.getTimezone())) {
                 return;
             }
         }
-        // --- KẾT THÚC LOGIC TASK 201 & 202 ---
 
         Map<String, String> dataPayload = new HashMap<>();
         dataPayload.put("type", notification.getType().name());
@@ -88,7 +83,29 @@ public class NotificationDispatchService {
                 .build());
     }
 
-    // --- HÀM HELPER CHO TASK 201 & 202 ---
+    // --- BỔ SUNG CHO MODULE PAYMENT ---
+    public void dispatchPaymentSuccessWebSocket(String recipientId, String packageInfo) {
+        try {
+            // Giả lập một response để gửi thẳng xuống WebSocket cho Frontend bắt hiệu ứng
+            NotificationResponse response = NotificationResponse.builder()
+                    .id(UUID.randomUUID().toString())
+                    // Yêu cầu: Bạn cần thêm PAYMENT_SUCCESS vào enum NotificationType
+                    .type("PAYMENT_SUCCESS")
+                    .title("Thanh toán thành công")
+                    .message("Tài khoản đã được nâng cấp lên gói " + packageInfo)
+                    .isRead(false)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            asyncTaskProducer.submitWebSocketNotificationTask(WebSocketNotificationTask.builder()
+                    .recipientId(recipientId)
+                    .response(response)
+                    .retryCount(0)
+                    .build());
+        } catch (IllegalArgumentException e) {
+            log.warn("Vui lòng thêm PAYMENT_SUCCESS vào NotificationType enum. Lỗi: {}", e.getMessage());
+        }
+    }
 
     private boolean isDndActive(UserSettings settings, String userTimezone) {
         if (settings.getDndEnabled() == null || !settings.getDndEnabled()) return false;
@@ -105,11 +122,21 @@ public class NotificationDispatchService {
         int end = settings.getDndEndHour() != null ? settings.getDndEndHour() : 6;
 
         if (start <= end) {
-            // Ví dụ DND từ 8h sáng đến 12h trưa
             return currentHour >= start && currentHour < end;
         } else {
-            // Ví dụ DND qua đêm từ 22h đêm đến 6h sáng hôm sau
             return currentHour >= start || currentHour < end;
+        }
+    }
+    
+    private boolean isCategoryTypeAllowed(UserSettings settings, String type) {
+        if (type == null || type.isBlank()) {
+            return true;
+        }
+        try {
+            NotificationType notificationType = NotificationType.valueOf(type);
+            return isCategoryTypeAllowed(settings, notificationType);
+        } catch (IllegalArgumentException ignored) {
+            return true;
         }
     }
 
@@ -124,18 +151,5 @@ public class NotificationDispatchService {
             case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
             default -> true;
         };
-    }
-
-    private boolean isCategoryTypeAllowed(UserSettings settings, String type) {
-        if (type == null || type.isBlank()) {
-            return true;
-        }
-
-        try {
-            NotificationType notificationType = NotificationType.valueOf(type);
-            return isCategoryTypeAllowed(settings, notificationType);
-        } catch (IllegalArgumentException ignored) {
-            return true;
-        }
     }
 }

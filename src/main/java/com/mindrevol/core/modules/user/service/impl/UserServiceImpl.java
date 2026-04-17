@@ -27,6 +27,7 @@ import com.mindrevol.core.modules.user.dto.request.UpdateProfileDto;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserPublicResponse;
+import com.mindrevol.core.modules.user.entity.AccountType;
 import com.mindrevol.core.modules.user.entity.Friendship;
 import com.mindrevol.core.modules.user.entity.FriendshipStatus;
 import com.mindrevol.core.modules.user.entity.User;
@@ -46,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
@@ -471,6 +473,32 @@ public class UserServiceImpl implements UserService {
         userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User không tồn tại"));
         return checkinRepository.getCalendarRecapInMonth(userId, year, month);
+    }
+    
+    @Override
+    @Transactional
+    public void upgradeUserTier(String userId, AccountType newType, int durationDays) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        
+        user.setAccountType(newType);
+        
+        // Tính toán múi giờ của user để căn ngày hết hạn cho chuẩn
+        String tz = user.getTimezone() != null ? user.getTimezone() : "UTC";
+        LocalDateTime now = LocalDateTime.now(ZoneId.of(tz));
+        LocalDateTime currentExpiry = user.getSubscriptionExpiryDate();
+        
+        // Nếu chưa từng có gói, hoặc gói đã hết hạn -> Bắt đầu tính từ ngày hôm nay
+        if (currentExpiry == null || currentExpiry.isBefore(now)) {
+            user.setSubscriptionExpiryDate(now.plusDays(durationDays));
+        } else {
+            // Nếu vẫn đang còn hạn gói cũ (ví dụ nạp dồn) -> Cộng dồn vào ngày hết hạn hiện tại
+            user.setSubscriptionExpiryDate(currentExpiry.plusDays(durationDays));
+        }
+        
+        userRepository.save(user);
+        log.info("Đã nâng cấp User ID: {} lên gói {} thêm {} ngày. Ngày hết hạn mới: {}", 
+                 userId, newType.name(), durationDays, user.getSubscriptionExpiryDate());
     }
 
     private UserProfileResponse buildUserProfile(User targetUser, User viewer) {

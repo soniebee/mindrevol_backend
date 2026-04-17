@@ -6,6 +6,7 @@ import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
 import com.mindrevol.core.modules.user.dto.response.UserDataExport;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
+import com.mindrevol.core.modules.user.entity.AccountType;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.entity.UserSettings;
 import com.mindrevol.core.modules.checkin.dto.response.CalendarRecapResponse;
@@ -50,4 +51,6 @@ public interface UserService {
     void unlinkSocialAccount(String userId, String provider);
 
 	List<CalendarRecapResponse> getUserCalendarRecap(String userId, int year, int month);
+
+	void upgradeUserTier(String userId, AccountType newType, int durationDays);
 }

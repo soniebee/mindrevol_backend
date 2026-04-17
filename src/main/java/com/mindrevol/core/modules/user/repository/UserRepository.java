@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.user.repository;
 
+import com.mindrevol.core.modules.user.entity.AccountType;
 import com.mindrevol.core.modules.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -7,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -47,4 +49,11 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Modifying
     @Query(value = "UPDATE users SET current_streak = 0 WHERE current_streak > 0 AND (last_checkin_at IS NULL OR last_checkin_at < CURRENT_DATE - INTERVAL '1 day')", nativeQuery = true)
     int resetBrokenStreaks();
+    
+ // Thêm vào UserRepository.java
+    @Modifying
+    @Query("UPDATE User u SET u.accountType = :freeType WHERE u.accountType = :goldType AND u.subscriptionExpiryDate < :now")
+    int downgradeExpiredUsers(@Param("freeType") AccountType freeType, 
+                              @Param("goldType") AccountType goldType, 
+                              @Param("now") LocalDateTime now);
 }

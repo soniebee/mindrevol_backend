@@ -106,7 +106,10 @@ public class SecurityConfig {
                         "/ws/**",
                         "/api/v1/plans/{shareableLink}/public",
                         "/actuator/health",
-                        "/api/v1/payment/webhook",
+                        
+                        // [QUAN TRỌNG NHẤT LÀ DÒNG NÀY ĐÂY] - Đã thêm /** để nhận sepay, vnpay, momo
+                        "/api/v1/payment/webhook/**", 
+                        
                         "/actuator/prometheus"
                 ).permitAll()
 
@@ -159,6 +162,7 @@ public class SecurityConfig {
         }
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        // Cấu hình đã có sẵn "Apikey" rất chuẩn để nhận Header từ SePay
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With", "Accept", "X-Rate-Limit-Remaining", "Retry-After", "Apikey"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
