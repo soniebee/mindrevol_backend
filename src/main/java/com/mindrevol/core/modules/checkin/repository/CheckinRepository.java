@@ -17,6 +17,16 @@ import java.util.Optional;
 @Repository
 public interface CheckinRepository extends JpaRepository<Checkin, String> {
 
+    @Query("SELECT c FROM Checkin c JOIN FETCH c.user WHERE c.journey IS NOT NULL " +
+           "AND (c.user.id = :userId " +
+           "OR c.user.id IN (SELECT f.addressee.id FROM Friendship f WHERE f.requester.id = :userId AND f.status = 'ACCEPTED') " +
+           "OR c.user.id IN (SELECT f.requester.id FROM Friendship f WHERE f.addressee.id = :userId AND f.status = 'ACCEPTED')) " +
+           "ORDER BY c.createdAt DESC")
+    Page<Checkin> findJourneyGridFeed(@Param("userId") String userId, Pageable pageable);
+
+    @Query("SELECT c FROM Checkin c WHERE c.user.id = :userId AND c.journey IS NULL ORDER BY c.createdAt DESC")
+    Page<Checkin> findArchivedCheckinsByUser(@Param("userId") String userId, Pageable pageable);
+
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user WHERE c.journey.id = :journeyId ORDER BY c.createdAt DESC")
     Page<Checkin> findByJourneyIdOrderByCreatedAtDesc(@Param("journeyId") String journeyId, Pageable pageable);
 
@@ -28,13 +38,14 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     
     List<Checkin> findAllByUserIdOrderByCreatedAtDesc(String userId);
 
-    // [THÊM MỚI - LOGIC TÀNG HÌNH]: Nếu người xem là người lạ, chỉ lấy ảnh của ai bật isProfileVisible = true
     @Query("SELECT c FROM Checkin c " +
-           "JOIN JourneyParticipant jp ON c.journey.id = jp.journey.id AND c.user.id = jp.user.id " +
-           "WHERE c.journey.id = :journeyId " +
-           "AND (:isViewerMember = true OR jp.isProfileVisible = true) " +
-           "ORDER BY c.createdAt DESC")
-    List<Checkin> findVisibleCheckinsByJourneyId(@Param("journeyId") String journeyId, @Param("isViewerMember") boolean isViewerMember);
+    	       "LEFT JOIN JourneyParticipant jp ON c.journey.id = jp.journey.id AND c.user.id = jp.user.id " +
+    	       "WHERE c.journey.id = :journeyId " +
+    	       // Nếu là Viewer thì thấy hết. Nếu là người lạ, thì xem người đó có bật public không (nếu là guest), 
+    	       // hoặc mặc định cho phép xem nếu họ là Box Member (jp.id IS NULL)
+    	       "AND (:isViewerMember = true OR jp.isProfileVisible = true OR jp.id IS NULL) " +
+    	       "ORDER BY c.createdAt DESC")
+    	List<Checkin> findVisibleCheckinsByJourneyId(@Param("journeyId") String journeyId, @Param("isViewerMember") boolean isViewerMember);
 
     @Query("SELECT c FROM Checkin c JOIN FETCH c.user u WHERE c.journey.id IN (SELECT p.journey.id FROM JourneyParticipant p WHERE p.user.id = :userId) AND c.createdAt >= :sinceDate AND c.createdAt <= :cursor AND u.id NOT IN :excludedUserIds ORDER BY c.createdAt DESC")
     List<Checkin> findUnifiedFeedRecent(@Param("userId") String userId, @Param("sinceDate") LocalDateTime sinceDate, @Param("cursor") LocalDateTime cursor, @Param("excludedUserIds") Collection<String> excludedUserIds, Pageable pageable);
@@ -43,7 +54,7 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
     List<Checkin> findJourneyFeedByCursor(@Param("journeyId") String journeyId, @Param("cursor") LocalDateTime cursor, @Param("excludedUserIds") Collection<String> excludedUserIds, Pageable pageable);
     
     @Query("SELECT c.createdAt FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId AND c.status IN ('NORMAL', 'LATE', 'COMEBACK', 'REST') ORDER BY c.createdAt DESC")
-     List<LocalDateTime> findValidCheckinDates(@Param("journeyId") String journeyId, @Param("userId") String userId);
+    List<LocalDateTime> findValidCheckinDates(@Param("journeyId") String journeyId, @Param("userId") String userId);
 
     @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId ORDER BY c.createdAt DESC")
     Page<Checkin> findMyCheckinsInJourney(@Param("journeyId") String journeyId, @Param("userId") String userId, Pageable pageable);
@@ -83,9 +94,23 @@ public interface CheckinRepository extends JpaRepository<Checkin, String> {
                                                  @Param("year") int year, 
                                                  @Param("month") int month);
     
- // Đếm tổng số bài đăng của một user (bỏ qua các bài đã xóa mềm)
     long countByUserIdAndDeletedAtIsNull(String userId);
     
-    // NẾU BẠN KHÔNG DÙNG XÓA MỀM (hoặc đã có @Where(clause="deleted_at is null") ở entity) thì chỉ cần:
     long countByUserId(String userId);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByJourneyIdForRecap(@Param("journeyId") String journeyId);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id = :journeyId AND c.user.id = :userId AND c.imageUrl IS NOT NULL AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByJourneyIdAndUserId(@Param("journeyId") String journeyId, @Param("userId") String userId);
+
+    // =========================================================================
+    // [THÊM MỚI] CÁC HÀM LẤY ẢNH TỪ NHIỀU HÀNH TRÌNH CÙNG LÚC (GLOBAL RECAP)
+    // =========================================================================
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id IN :journeyIds AND c.imageUrl IS NOT NULL AND c.imageUrl != '' AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByMultipleJourneyIds(@Param("journeyIds") List<String> journeyIds);
+
+    @Query("SELECT c FROM Checkin c WHERE c.journey.id IN :journeyIds AND c.user.id = :userId AND c.imageUrl IS NOT NULL AND c.imageUrl != '' AND c.status <> 'REJECTED' ORDER BY c.checkinDate ASC")
+    List<Checkin> findMediaByMultipleJourneyIdsAndUserId(@Param("journeyIds") List<String> journeyIds, @Param("userId") String userId);
 }

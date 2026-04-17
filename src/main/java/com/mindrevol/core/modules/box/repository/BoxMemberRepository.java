@@ -4,8 +4,11 @@ import com.mindrevol.core.modules.box.entity.BoxMember;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -22,4 +25,11 @@ public interface BoxMemberRepository extends JpaRepository<BoxMember, String> { 
 
     // Phân trang danh sách thành viên trong một Box
     Page<BoxMember> findByBoxId(String boxId, Pageable pageable);
+    
+    // [ĐÃ THÊM MỚI]: Lấy danh sách toàn bộ thành viên trong Box (Không phân trang)
+    List<BoxMember> findByBoxId(String boxId);
+    
+    // Lấy tất cả user_id trong một box (Phục vụ cho việc cấp quyền xem Journey ở bước sau)
+    @Query("SELECT bm.user.id FROM BoxMember bm WHERE bm.box.id = :boxId")
+    List<String> findAllUserIdsByBoxId(@Param("boxId") String boxId);
 }

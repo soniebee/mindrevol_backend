@@ -4,6 +4,10 @@ import com.mindrevol.core.common.event.CheckinSuccessEvent;
 import com.mindrevol.core.modules.box.entity.Box;
 import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberAddedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberRemovedEvent;
+import com.mindrevol.core.modules.box.event.BoxRoleUpdatedEvent;
+import com.mindrevol.core.modules.box.repository.BoxRepository;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
 import com.mindrevol.core.modules.checkin.event.CheckinReactedEvent;
 import com.mindrevol.core.modules.checkin.event.CommentPostedEvent;
@@ -42,6 +46,7 @@ public class NotificationEventListener {
 
     private final NotificationService notificationService;
     private final CheckinRepository checkinRepository;
+    private final BoxRepository boxRepository;
     private final JourneyParticipantRepository participantRepository;
     private final MoodRepository moodRepository;
     private final UserRepository userRepository;
@@ -76,8 +81,8 @@ public class NotificationEventListener {
                     recipient.getId(),
                     author.getId(),
                     NotificationType.CHECKIN,
-                    "Khoanh khac moi",
-                    author.getFullname() + " vừa check-in trong " + journeyName,
+                    "New check-in",
+                    author.getFullname() + " just checked in to " + journeyName,
                     checkin.getId(),
                     checkin.getImageUrl(),
                     "noti.checkin.new",
@@ -100,12 +105,12 @@ public class NotificationEventListener {
                     postOwner.getId(),
                     commenter.getId(),
                     NotificationType.COMMENT,
-                    "Binh luan moi",
+                    "New comment",
                     commenter.getFullname() + ": " + event.getContent(),
                     checkin.getId(),
                     commenter.getAvatarUrl(),
                     "noti.comment.new",
-                    "[\"" + commenter.getFullname() + "\"]",
+                    "[\"" + commenter.getFullname() + "\",\"" + event.getContent() + "\"]",
                     null
             );
         }
@@ -125,8 +130,8 @@ public class NotificationEventListener {
                 newMember.getId(),
                 adder.getId(),
                 NotificationType.BOX_ADDED,
-                "Khong gian moi",
-                adder.getFullname() + " đã thêm bạn vào không gian " + box.getName(),
+                "New space",
+                adder.getFullname() + " added you to space " + box.getName(),
                 box.getId(),
                 box.getAvatar(),
                 "noti.box.added",
@@ -136,7 +141,7 @@ public class NotificationEventListener {
     }
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleBoxInvited(BoxInvitedEvent event) {
         User inviter = userRepository.findById(event.getSenderId()).orElse(null);
         User invitee = userRepository.findById(event.getRecipientId()).orElse(null);
@@ -148,8 +153,8 @@ public class NotificationEventListener {
                 invitee.getId(),
                 inviter.getId(),
                 NotificationType.BOX_INVITE,
-                "Loi moi Khong gian",
-                inviter.getFullname() + " đã mời bạn tham gia vào " + event.getBoxName(),
+                "Box invitation: " + event.getBoxName(),
+                inviter.getFullname() + " invited you to join " + event.getBoxName(),
                 event.getInvitationId(),
                 inviter.getAvatarUrl(),
                 "noti.box.invite",
@@ -188,8 +193,8 @@ public class NotificationEventListener {
                 event.getCheckinOwnerId(),
                 reactor.getId(),
                 NotificationType.REACTION,
-                "Tương tác mới",
-                reactor.getFullname() + " đã thả cảm xúc vào bài viết của bạn",
+                "New reaction",
+                reactor.getFullname() + " reacted to your post",
                 event.getCheckinId(),
                 reactor.getAvatarUrl(),
                 "noti.reaction.checkin",
@@ -228,8 +233,8 @@ public class NotificationEventListener {
                 event.getMoodOwnerId(),
                 reactor.getId(),
                 NotificationType.REACTION,
-                "Tương tác mới",
-                reactor.getFullname() + " đã thả cảm xúc vào trạng thái của bạn",
+                "New reaction",
+                reactor.getFullname() + " reacted to your status",
                 event.getMoodId(),
                 reactor.getAvatarUrl(),
                 "noti.reaction.mood",
@@ -238,6 +243,81 @@ public class NotificationEventListener {
         );
     }
 
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxMemberJoined(BoxMemberJoinedEvent event) {
+        Box box = boxRepository.findById(event.getBoxId()).orElse(null);
+        User joinedUser = userRepository.findById(event.getJoinedUserId()).orElse(null);
+        if (box == null || joinedUser == null) {
+            return;
+        }
+
+        // Gửi thông báo cho chủ Box
+        notificationService.sendAndSaveNotificationFull(
+                box.getOwner().getId(),
+                joinedUser.getId(),
+                NotificationType.BOX_MEMBER_JOINED,
+                "New member joined",
+                joinedUser.getFullname() + " accepted the invitation and joined " + box.getName(),
+                box.getId(),
+                joinedUser.getAvatarUrl(),
+                "noti.box.member.joined",
+                "[\"" + joinedUser.getFullname() + "\",\"" + box.getName() + "\"]",
+                null
+        );
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxMemberRemoved(BoxMemberRemovedEvent event) {
+        User removedUser = userRepository.findById(event.getRemovedUserId()).orElse(null);
+        User admin = userRepository.findById(event.getAdminId()).orElse(null);
+        if (removedUser == null || admin == null) {
+            return;
+        }
+
+        // Gửi thông báo cho người bị đuổi ra
+        notificationService.sendAndSaveNotificationFull(
+                removedUser.getId(),
+                admin.getId(),
+                NotificationType.BOX_MEMBER_REMOVED,
+                "You were removed from the space",
+                admin.getFullname() + " removed you from " + event.getBoxName(),
+                event.getBoxId(),
+                admin.getAvatarUrl(),
+                "noti.box.member.removed",
+                "[\"" + admin.getFullname() + "\",\"" + event.getBoxName() + "\"]",
+                null
+        );
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void handleBoxRoleUpdated(BoxRoleUpdatedEvent event) {
+        User member = userRepository.findById(event.getMemberId()).orElse(null);
+        User admin = userRepository.findById(event.getAdminId()).orElse(null);
+        if (member == null || admin == null) {
+            return;
+        }
+
+        String roleChangeMessage = String.format("Your role has been changed from %s to %s",
+                event.getOldRole().name(), event.getNewRole().name());
+
+        // Gửi thông báo cho thành viên bị thay đổi vai trò
+        notificationService.sendAndSaveNotificationFull(
+                member.getId(),
+                admin.getId(),
+                NotificationType.BOX_ROLE_UPDATED,
+                "Role updated",
+                roleChangeMessage,
+                event.getBoxId(),
+                admin.getAvatarUrl(),
+                "noti.box.role.updated",
+                "[\"" + event.getOldRole().name() + "\",\"" + event.getNewRole().name() + "\",\"" + event.getBoxName() + "\"]",
+                null
+        );
+    }
 
     // --- 6. XỬ LÝ NHẮC TÊN TRONG BÌNH LUẬN ---
     private void notifyMentions(CommentPostedEvent event, Checkin checkin, User commenter) {
@@ -257,9 +337,9 @@ public class NotificationEventListener {
                 notificationService.sendAndSaveNotificationFull(
                         mentionedUser.getId(),
                         commenter.getId(),
-                        NotificationType.MOOD_MENTIONED,
-                        "Bạn được nhắc đến",
-                        commenter.getFullname() + " đã nhắc bạn trong một bình luận",
+                        NotificationType.COMMENT_MENTIONED,
+                        "You were mentioned",
+                        commenter.getFullname() + " mentioned you in a comment",
                         checkin.getId(),
                         commenter.getAvatarUrl(),
                         "noti.comment.mentioned",

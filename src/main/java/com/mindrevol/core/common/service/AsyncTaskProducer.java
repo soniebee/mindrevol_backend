@@ -35,6 +35,12 @@ public class AsyncTaskProducer {
         RBlockingQueue<WebSocketNotificationTask> queue = redissonClient.getBlockingQueue(WEBSOCKET_QUEUE_NAME);
         queue.add(task);
     }
+    
+    public void submitRecapTask(com.mindrevol.core.modules.recap.dto.RecapTask task) {
+        RBlockingQueue<com.mindrevol.core.modules.recap.dto.RecapTask> queue = redissonClient.getBlockingQueue(com.mindrevol.core.common.constant.AppConstants.QUEUE_RECAP_GENERATION);
+        queue.add(task);
+        log.info("Task submitted to RECAP queue for User {} Journey {}", task.getUserId(), task.getJourneyId());
+    }
 
     // --- THÊM HÀM NÀY ---
 //    public void submitVideoTask(VideoTask task) {

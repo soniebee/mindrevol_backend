@@ -26,6 +26,11 @@ public class UserActiveJourneyResponse {
     private String themeColor;
     private String avatar;
 
+    // 🔥 THÊM THÔNG TIN BOX ĐỂ FILTER TRÊN PROFILE
+    private String boxId;
+    private String boxName;
+    private String boxAvatar;
+
     private List<String> memberAvatars;
     private int totalMembers;          
     private long daysRemaining;        
@@ -33,7 +38,7 @@ public class UserActiveJourneyResponse {
     private int totalCheckins;         
     private boolean hasNewUpdates;     
     
-    // [THÊM MỚI] Cờ kiểm tra xem user đang chọn Ẩn hay Hiện trên profile
+    // Cờ kiểm tra xem user đang chọn Ẩn hay Hiện trên profile
     private boolean isProfileVisible;
     
     private List<CheckinResponse> checkins; 

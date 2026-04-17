@@ -18,10 +18,12 @@ import com.mindrevol.core.modules.user.repository.UserBlockRepository;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -45,10 +47,8 @@ public class FeedServiceImpl implements FeedService {
     private static final String FEED_CACHE_PREFIX = "feed:unified:";
     private static final long CACHE_TTL_MINUTES = 5;
 
-    private static final int SLOT_INTERNAL_GOLD = 5;
-    private static final int SLOT_AFFILIATE = 10;
-
     @Override
+    @Transactional(readOnly = true)
     public List<FeedItemResponse> getNewsFeed(String userId, int offset, int limit) {
         User currentUser = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -65,6 +65,34 @@ public class FeedServiceImpl implements FeedService {
         }
 
         return finalFeed;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FeedItemResponse> getJourneyGridFeed(String userId, int page, int limit) {
+        User currentUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Pageable pageable = PageRequest.of(page, limit);
+        
+        Page<Checkin> checkins = checkinRepository.findJourneyGridFeed(userId, pageable);
+        
+        List<FeedItemResponse> posts = checkins.getContent().stream()
+                .map(checkinMapper::toResponse)
+                .collect(Collectors.toList());
+
+        // Bỏ qua quảng cáo nếu là Premium
+        if (currentUser.isPremium()) {
+            return posts;
+        }
+
+        // Trộn quảng cáo vào feed grid
+        if (!posts.isEmpty()) {
+            int offset = page * limit;
+            return injectContextualAds(posts, offset, limit);
+        }
+
+        return posts;
     }
 
     private List<CheckinResponse> getCachedPosts(String userId, int offset, int limit) {
@@ -86,14 +114,11 @@ public class FeedServiceImpl implements FeedService {
 
         Pageable pageable = PageRequest.of(page, limit);
         LocalDateTime cursor = LocalDateTime.now().plusSeconds(10);
-
-        // [FIX BIÊN DỊCH]: Gọi method mới (5 tham số)
-        // Lấy 30 ngày cho Feed Service (để có nhiều data trộn quảng cáo hơn)
         LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
 
         List<Checkin> dbCheckins = checkinRepository.findUnifiedFeedRecent(
                 userId,
-                thirtyDaysAgo, // sinceDate
+                thirtyDaysAgo, 
                 cursor,
                 blockedIds,
                 pageable
@@ -112,57 +137,57 @@ public class FeedServiceImpl implements FeedService {
         return responseList;
     }
 
-    private List<FeedItemResponse> injectContextualAds(List<FeedItemResponse> posts, int offset, int limit) {
+    @Override
+    public List<FeedItemResponse> injectContextualAds(List<FeedItemResponse> posts, int offset, int limit) {
+        // Lấy tất cả quảng cáo (Internal & Affiliate) đang active
         List<SystemAd> internalAds = systemAdRepository.findByTypeAndIsActiveTrue(FeedItemType.INTERNAL_AD);
         List<SystemAd> affiliateAds = systemAdRepository.findAllActiveAffiliateAds();
 
+        List<SystemAd> allAds = new ArrayList<>();
+        allAds.addAll(internalAds);
+        allAds.addAll(affiliateAds);
+
+        System.out.println("======== DEBUG QUẢNG CÁO ========");
+        System.out.println("1. Lấy từ DB -> Internal: " + internalAds.size() + " | Affiliate: " + affiliateAds.size());
+        System.out.println("2. Số lượng bài Post gốc: " + posts.size());
+
+        // Nếu không có quảng cáo nào trong DB, trả về Feed gốc
+        if (allAds.isEmpty()) {
+            System.out.println("   -> Không có quảng cáo trong DB, bỏ qua chèn.");
+            return posts;
+        }
+
         List<FeedItemResponse> mixedFeed = new ArrayList<>();
         int globalIndex = offset;
+        
+        // Khởi tạo bộ đếm và Random mục tiêu chèn quảng cáo đầu tiên (Sau 3 đến 5 bài)
+        int postsSinceLastAd = 0;
+        int nextAdTarget = ThreadLocalRandom.current().nextInt(3, 6);
 
         for (FeedItemResponse item : posts) {
             mixedFeed.add(item);
             globalIndex++;
+            postsSinceLastAd++;
 
-            CheckinResponse postData = (item instanceof CheckinResponse) ? (CheckinResponse) item : null;
-
-            if (globalIndex % SLOT_INTERNAL_GOLD == 0 && globalIndex % SLOT_AFFILIATE != 0) {
-                if (!internalAds.isEmpty()) {
-                    SystemAd ad = internalAds.get(ThreadLocalRandom.current().nextInt(internalAds.size()));
-                    mixedFeed.add(mapAdToResponse(ad));
-                }
-            }
-
-            if (globalIndex % SLOT_AFFILIATE == 0 && postData != null) {
-                List<String> postTags = postData.getTags();
-                SystemAd matchedAd = findMatchingAffiliate(postTags, affiliateAds);
-
-                if (matchedAd != null) {
-                    mixedFeed.add(mapAdToResponse(matchedAd));
-                }
+            // Điều kiện: Luôn bỏ qua 2 bài đầu tiên (globalIndex > 2) và Đã đạt số bài viết mục tiêu (postsSinceLastAd >= nextAdTarget)
+            if (globalIndex > 2 && postsSinceLastAd >= nextAdTarget) {
+                // Lấy ngẫu nhiên 1 quảng cáo từ tổng danh sách
+                SystemAd randomAd = allAds.get(ThreadLocalRandom.current().nextInt(allAds.size()));
+                mixedFeed.add(mapAdToResponse(randomAd));
+                
+                System.out.println("   -> Đã chèn 1 " + randomAd.getType() + " vào vị trí bài viết thứ: " + globalIndex);
+                
+                // Reset bộ đếm về 0
+                postsSinceLastAd = 0;
+                
+                // Random lại khoảng cách cho lần chèn tiếp theo (Giãn cách xa hơn: từ 4 đến 8 bài viết)
+                nextAdTarget = ThreadLocalRandom.current().nextInt(4, 9);
             }
         }
+        
+        System.out.println("3. TỔNG SỐ ITEM SAU KHI TRỘN: " + mixedFeed.size());
+        System.out.println("=================================");
         return mixedFeed;
-    }
-
-    private SystemAd findMatchingAffiliate(List<String> postTags, List<SystemAd> ads) {
-        if (postTags == null || postTags.isEmpty() || ads.isEmpty()) return null;
-
-        List<SystemAd> shuffledAds = new ArrayList<>(ads);
-        Collections.shuffle(shuffledAds);
-
-        for (SystemAd ad : shuffledAds) {
-            if (ad.getTargetTags() == null) continue;
-            String[] adTags = ad.getTargetTags().split(",");
-
-            for (String postTag : postTags) {
-                for (String adTag : adTags) {
-                    if (postTag.trim().equalsIgnoreCase(adTag.trim())) {
-                        return ad;
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     private AdFeedItemResponse mapAdToResponse(SystemAd ad) {

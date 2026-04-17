@@ -55,17 +55,14 @@ public class UserSettings extends BaseEntity {
     @Builder.Default
     private boolean pushBoxInvite = true;
 
-    @Column(name = "push_enabled", nullable = false)
-    @Builder.Default
-    private boolean pushEnabled = true;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean emailEnabled = true;
 
-    @Column(name = "in_app_enabled", nullable = false)
-    @Builder.Default
+    @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean inAppEnabled = true;
 
-    @Column(name = "email_enabled", nullable = false)
-    @Builder.Default
-    private boolean emailEnabled = true;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean pushEnabled = true;
 
     // [TASK-201] Tuỳ chỉnh nhận In-app theo danh mục
     @Column(name = "in_app_comment")

@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/repository/ConversationRepository.java
 package com.mindrevol.core.modules.chat.repository;
 
 import com.mindrevol.core.modules.chat.entity.Conversation;
@@ -13,29 +14,18 @@ import java.util.Optional;
 public interface ConversationRepository extends JpaRepository<Conversation, String> {
     
     @Query("SELECT c FROM Conversation c " +
-           "WHERE (c.user1.id = :userId1 AND c.user2.id = :userId2) " +
-           "OR (c.user1.id = :userId2 AND c.user2.id = :userId1) " +
-           "ORDER BY c.lastMessageAt DESC")
+           "JOIN c.participants p1 " +
+           "JOIN c.participants p2 " +
+           "WHERE p1.user.id = :userId1 AND p2.user.id = :userId2 AND c.boxId IS NULL")
     List<Conversation> findByUsers(@Param("userId1") String userId1, @Param("userId2") String userId2);
 
+    // [CẬP NHẬT] Lọc isHidden = false và ORDER BY isPinned DESC lên đầu
     @Query("SELECT c FROM Conversation c " +
-           "JOIN FETCH c.user1 u1 " +
-           "JOIN FETCH c.user2 u2 " +
-           "WHERE (u1.id = :userId OR u2.id = :userId) " +
-           "AND c.boxId IS NULL " + // Lọc riêng chỉ lấy chat 1-1
-           "AND NOT EXISTS ( " +
-               "SELECT 1 FROM UserBlock ub " +
-               "WHERE (ub.blocker.id = :userId AND (ub.blocked.id = u1.id OR ub.blocked.id = u2.id)) " +
-               "OR (ub.blocked.id = :userId AND (ub.blocker.id = u1.id OR ub.blocker.id = u2.id)) " +
-           ") " +
-           "ORDER BY c.lastMessageAt DESC")
+           "JOIN c.participants p " +
+           "WHERE p.user.id = :userId AND p.isHidden = false " +
+           "ORDER BY p.isPinned DESC, c.lastMessageAt DESC")
     List<Conversation> findValidConversationsByUserId(@Param("userId") String userId);
 
     @Query("SELECT c FROM Conversation c WHERE c.boxId = :boxId")
     Optional<Conversation> findByBoxId(@Param("boxId") String boxId);
-
-    // [THÊM MỚI] Lấy danh sách các Group Chat của Box mà User tham gia
-    @Query("SELECT c FROM Conversation c WHERE c.boxId IN " +
-           "(SELECT bm.box.id FROM BoxMember bm WHERE bm.user.id = :userId)")
-    List<Conversation> findBoxConversationsByUserId(@Param("userId") String userId);
 }

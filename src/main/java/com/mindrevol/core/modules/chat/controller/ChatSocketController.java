@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/controller/ChatSocketController.java (CẬP NHẬT)
 package com.mindrevol.core.modules.chat.controller;
 
 import com.mindrevol.core.modules.chat.dto.request.TypingEvent;
@@ -13,19 +14,13 @@ public class ChatSocketController {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-    /**
-     * Nhận sự kiện Typing từ Client A gửi lên
-     * Client gửi tới: /app/chat/typing
-     */
     @MessageMapping("/chat/typing")
     public void handleTypingEvent(@Payload TypingEvent event) {
-        // [THÊM BẢO VỆ] Tránh lỗi NullPointerException khi chat Box (nhóm) không có receiverId cụ thể
-        if (event.getReceiverId() != null && !event.getReceiverId().isEmpty() && !event.getReceiverId().equals("null")) {
-            messagingTemplate.convertAndSendToUser(
-                event.getReceiverId(),
-                "/queue/typing",
-                event
-            );
-        }
-}
+        // [THAY ĐỔI QUAN TRỌNG] Bắn sự kiện Typing vào Topic của phòng thay vì gửi thẳng cho 1 cá nhân
+        // Client sẽ subscribe: /topic/chat.{conversationId}.typing
+        messagingTemplate.convertAndSend(
+            "/topic/chat." + event.getConversationId() + ".typing",
+            event
+        );
+    }
 }

@@ -15,21 +15,20 @@ import com.mindrevol.core.modules.box.entity.BoxMember;
 import com.mindrevol.core.modules.box.entity.BoxRole;
 import com.mindrevol.core.modules.box.event.BoxInvitedEvent;
 import com.mindrevol.core.modules.box.event.BoxMemberJoinedEvent;
+import com.mindrevol.core.modules.box.event.BoxMemberRemovedEvent;
+import com.mindrevol.core.modules.box.event.BoxRoleUpdatedEvent;
 import com.mindrevol.core.modules.box.mapper.BoxMapper;
 import com.mindrevol.core.modules.box.repository.BoxInvitationRepository;
 import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.modules.box.repository.BoxRepository;
 import com.mindrevol.core.modules.box.service.BoxService;
-
-// Nhập thêm các thư viện cần thiết cho phần lấy Journey & Thành viên
+import com.mindrevol.core.modules.box.event.BoxMemberInvitedEvent;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.journey.entity.Journey;
-import com.mindrevol.core.modules.journey.entity.JourneyInvitationStatus;
 import com.mindrevol.core.modules.journey.entity.JourneyStatus;
 import com.mindrevol.core.modules.journey.mapper.JourneyMapper;
 import com.mindrevol.core.modules.journey.repository.JourneyRepository;
 import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
-
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -55,17 +54,12 @@ public class BoxServiceImpl implements BoxService {
     private final UserRepository userRepository;
     private final BoxMapper boxMapper;
     
-    // Khai báo thêm để phục vụ hàm getBoxJourneys (Được lấy từ bản cũ)
     private final JourneyRepository journeyRepository;
     private final JourneyMapper journeyMapper;
     private final CheckinRepository checkinRepository;
     private final ChatService chatService;
 
     private final ApplicationEventPublisher eventPublisher;
-
-    // =========================================================================
-    // PHẦN 1: QUẢN LÝ BOX CƠ BẢN
-    // =========================================================================
 
     @Override
     @Transactional
@@ -92,11 +86,30 @@ public class BoxServiceImpl implements BoxService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<BoxResponse> getMyBoxes(String userId, Pageable pageable) {
-        Page<Box> boxes = boxRepository.findMyBoxes(userId, pageable);
+    public Page<BoxResponse> getMyBoxes(String userId, String tab, String search, Pageable pageable) {
+        Page<Box> boxes;
+        
+        // Switch case logic lọc theo Tab
+        if ("personal".equalsIgnoreCase(tab)) {
+            boxes = boxRepository.findMyPersonalBoxes(userId, search, pageable);
+        } else if ("friends".equalsIgnoreCase(tab)) {
+            boxes = boxRepository.findMyFriendBoxes(userId, search, pageable);
+        } else {
+            // Mặc định là "all" hoặc các giá trị khác
+            boxes = boxRepository.findMyBoxes(userId, search, pageable);
+        }
+
         return boxes.map(box -> {
             long memberCount = boxMemberRepository.countByBoxId(box.getId());
-            return boxMapper.toResponse(box, memberCount);
+            
+            // Lấy 3 avatar đầu tiên làm preview
+            List<String> previewAvatars = box.getMembers().stream()
+                    .map(m -> m.getUser().getAvatarUrl())
+                    .filter(url -> url != null && !url.isEmpty())
+                    .limit(3)
+                    .collect(Collectors.toList());
+
+            return boxMapper.toResponse(box, memberCount, previewAvatars);
         });
     }
 
@@ -179,14 +192,8 @@ public class BoxServiceImpl implements BoxService {
     public void leaveBox(String boxId, String userId) {
         BoxMember myMembership = boxMemberRepository.findByBoxIdAndUserId(boxId, userId)
                 .orElseThrow(() -> new BadRequestException("Bạn không phải là thành viên của Box này"));
-
-        // Tuỳ chọn logic: Nếu là Admin cuối cùng rời đi thì đổi chủ hoặc disband Box
         boxMemberRepository.delete(myMembership);
     }
-
-    // =========================================================================
-    // PHẦN 2: QUẢN LÝ LỜI MỜI VÀ QUYỀN HẠN
-    // =========================================================================
 
     @Override
     @Transactional
@@ -202,6 +209,9 @@ public class BoxServiceImpl implements BoxService {
         User invitee = userRepository.findById(inviteeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Người dùng được mời không tồn tại"));
 
+        User inviter = userRepository.findById(inviterId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người mời không tồn tại"));
+
         if (boxMemberRepository.existsByBoxIdAndUserId(boxId, inviteeId) || box.getOwner().getId().equals(inviteeId)) {
             throw new BadRequestException("Người này đã là thành viên của Box");
         }
@@ -212,20 +222,14 @@ public class BoxServiceImpl implements BoxService {
 
         BoxInvitation invitation = BoxInvitation.builder()
                 .box(box)
-                .inviter(userRepository.getReferenceById(inviterId))
-                .invitee(userRepository.getReferenceById(inviteeId))
+                .inviter(inviter) 
+                .invitee(invitee)
                 .status("PENDING")
                 .build();
 
         invitation = boxInvitationRepository.save(invitation);
 
-        eventPublisher.publishEvent(BoxInvitedEvent.builder()
-                .invitationId(String.valueOf(invitation.getId()))
-                .boxId(box.getId())
-                .boxName(box.getName())
-                .senderId(inviterId)
-                .recipientId(inviteeId)
-                .build());
+        eventPublisher.publishEvent(new BoxMemberInvitedEvent(box, inviter, invitee));
     }
 
     @Override
@@ -286,6 +290,14 @@ public class BoxServiceImpl implements BoxService {
                 .orElseThrow(() -> new ResourceNotFoundException("Thành viên này không có trong Box"));
 
         boxMemberRepository.delete(memberToKick);
+
+        // BỔ SUNG SPRINT 2: Phát sự kiện khi thành viên bị đuổi ra
+        eventPublisher.publishEvent(BoxMemberRemovedEvent.builder()
+                .boxId(box.getId())
+                .boxName(box.getName())
+                .removedUserId(memberId)
+                .adminId(adminId)
+                .build());
     }
 
     @Override
@@ -301,8 +313,19 @@ public class BoxServiceImpl implements BoxService {
         BoxMember member = boxMemberRepository.findByBoxIdAndUserId(boxId, memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Thành viên này không có trong Box"));
 
+        BoxRole oldRole = member.getRole();
         member.setRole(newRole);
         boxMemberRepository.save(member);
+
+        // BỔ SUNG SPRINT 2: Phát sự kiện khi vai trò thành viên bị thay đổi
+        eventPublisher.publishEvent(BoxRoleUpdatedEvent.builder()
+                .boxId(box.getId())
+                .boxName(box.getName())
+                .memberId(memberId)
+                .oldRole(oldRole)
+                .newRole(newRole)
+                .adminId(adminId)
+                .build());
     }
 
     @Override
@@ -326,29 +349,25 @@ public class BoxServiceImpl implements BoxService {
         boxRepository.save(box);
     }
 
-    // =========================================================================
-    // PHẦN 3: XỬ LÝ DỮ LIỆU HIỂN THỊ CÁC TAB BÊN TRONG BOX (PHỤC HỒI TỪ BẢN CŨ)
-    // =========================================================================
-
     @Override
     @Transactional(readOnly = true)
-    public List<BoxInvitationResponse> getMyPendingInvitations(String userId) {
-        
-        // TRUYỀN THẲNG CHUỖI "PENDING" VÀO ĐÂY, BỎ ENUM ĐI
-        List<BoxInvitation> invitations = boxInvitationRepository.findAllByInviteeIdAndStatusOrderByCreatedAtDesc(
+    public List<BoxInvitationResponse> getMyPendingInvitations(String userId, String search) {
+        // Cập nhật dùng query có hỗ trợ search
+        List<BoxInvitation> invitations = boxInvitationRepository.findAllByInviteeIdAndStatusAndSearchOrderByCreatedAtDesc(
                 userId, 
-                "PENDING" 
+                "PENDING",
+                search
         );
         
         return invitations.stream().map(inv -> BoxInvitationResponse.builder()
-                .id(inv.getId()) // Nếu DTO của bạn yêu cầu id là String, hãy bọc bằng String.valueOf(inv.getId())
+                .id(inv.getId()) 
                 .boxId(inv.getBox().getId())
                 .boxName(inv.getBox().getName())
                 .boxAvatar(inv.getBox().getAvatar())
                 .inviterId(inv.getInviter().getId())
                 .inviterName(inv.getInviter().getFullname())
                 .inviterAvatar(inv.getInviter().getAvatarUrl())
-                .status(inv.getStatus()) // status đã là String rồi, nên không cần .name() nữa
+                .status(inv.getStatus())
                 .sentAt(inv.getCreatedAt())
                 .build()
         ).collect(Collectors.toList());
@@ -365,20 +384,22 @@ public class BoxServiceImpl implements BoxService {
     public Page<BoxMemberResponse> getBoxMembers(String boxId, String userId, Pageable pageable) {
         checkMembership(boxId, userId);
         return boxMemberRepository.findByBoxId(boxId, pageable)
-                .map(member -> BoxMemberResponse.builder().userId(member.getUser().getId()).fullname(member.getUser().getFullname()).avatarUrl(member.getUser().getAvatarUrl()).role(member.getRole()).joinedAt(member.getJoinedAt()).build());
+                .map(member -> BoxMemberResponse.builder()
+                .userId(member.getUser().getId())
+                .fullname(member.getUser().getFullname())
+                .avatarUrl(member.getUser().getAvatarUrl())
+                .role(member.getRole())
+                .joinedAt(member.getJoinedAt())
+                .build());
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<JourneyResponse> getBoxJourneys(String boxId, String userId, Pageable pageable) {
-        if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
-            throw new BadRequestException("Bạn không có quyền truy cập không gian này");
-        }
-
+        checkMembership(boxId, userId);
         return journeyRepository.findJourneysByBoxId(boxId, pageable)
                 .map(journey -> {
                     JourneyResponse response = journeyMapper.toResponse(journey);
-                    // Lấy 31 ảnh preview như ở code bản cũ
                     List<String> images = checkinRepository.findPreviewImagesByJourneyId(
                             journey.getId(), 
                             PageRequest.of(0, 31)

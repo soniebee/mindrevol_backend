@@ -57,12 +57,12 @@ public class NotificationController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteNotification(@PathVariable String id) {
         notificationService.deleteNotification(id, SecurityUtils.getCurrentUserId());
-        return ApiResponse.success(null, "Đã xóa thông báo");
+        return ApiResponse.success(null, "Notification deleted");
     }
 
     @DeleteMapping("/all")
     public ApiResponse<Void> deleteAllMyNotifications() {
         notificationService.deleteAllMyNotifications(SecurityUtils.getCurrentUserId());
-        return ApiResponse.success(null, "Đã dọn sạch thông báo");
+        return ApiResponse.success(null, "All notifications cleared");
     }
 }

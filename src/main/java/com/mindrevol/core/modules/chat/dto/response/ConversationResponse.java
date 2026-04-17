@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/dto/response/ConversationResponse.java
 package com.mindrevol.core.modules.chat.dto.response;
 
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
@@ -20,7 +21,10 @@ public class ConversationResponse {
     private String status;
     private String boxId;
 
-    // [THÊM MỚI] Gửi kèm Tên và Avatar của Box xuống cho UI hiển thị
     private String boxName;
     private String boxAvatar;
+
+    // [CẬP NHẬT] Các cờ trạng thái cá nhân
+    private boolean isPinned;
+    private boolean isMuted;
 }
