@@ -465,7 +465,12 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public void addUserToBoxConversation(String boxId, String userId) {
         Conversation conv = conversationRepository.findByBoxId(boxId).orElse(null);
-        if (conv == null) return;
+        
+        // BỔ SUNG: Nếu Box cũ chưa có nhóm chat, tự động tạo mới
+        if (conv == null) {
+            Box box = boxRepository.findById(boxId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
+            conv = createBoxConversation(boxId, box.getName(), box.getOwner().getId());
+        }
         
         User newUser = userRepository.findById(userId).orElseThrow();
         boolean alreadyInBox = participantRepository.findByConversationIdAndUserId(conv.getId(), userId).isPresent();

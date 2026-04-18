@@ -255,6 +255,9 @@ public class BoxServiceImpl implements BoxService {
             boxMemberRepository.save(newMember);
             invitation.setStatus("ACCEPTED");
 
+            // BỔ SUNG DÒNG NÀY: Thêm user vào nhóm chat của Box
+            chatService.addUserToBoxConversation(invitation.getBox().getId(), userId);
+
             eventPublisher.publishEvent(BoxMemberJoinedEvent.builder()
                     .boxId(invitation.getBox().getId())
                     .boxName(invitation.getBox().getName())
