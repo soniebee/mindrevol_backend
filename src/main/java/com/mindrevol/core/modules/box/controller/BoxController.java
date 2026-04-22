@@ -1,131 +1,154 @@
 package com.mindrevol.core.modules.box.controller;
 
-// 1. Đảm bảo có đầy đủ các import này
+import com.mindrevol.core.common.dto.ApiResponse;
+import com.mindrevol.core.common.utils.SecurityUtils;
 import com.mindrevol.core.modules.box.dto.request.CreateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.InviteMemberRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateBoxRequest;
 import com.mindrevol.core.modules.box.dto.request.UpdateMemberRoleRequest;
 import com.mindrevol.core.modules.box.dto.response.BoxDetailResponse;
 import com.mindrevol.core.modules.box.dto.response.BoxResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxInvitationResponse;
+import com.mindrevol.core.modules.box.dto.response.BoxMemberResponse;
+import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import com.mindrevol.core.modules.box.service.BoxService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/boxes")
 @RequiredArgsConstructor
 public class BoxController {
 
-    // 2. Phải có dòng khai báo này thì các hàm bên dưới mới dùng được 'boxService'
     private final BoxService boxService;
 
     // 1. Tạo Box mới
     @PostMapping
-    public ResponseEntity<BoxDetailResponse> createBox(
-            @Valid @RequestBody CreateBoxRequest request,
-            @RequestHeader("X-User-Id") String userId) {
-
-        BoxDetailResponse response = boxService.createBox(request, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    public ApiResponse<BoxDetailResponse> createBox(@Valid @RequestBody CreateBoxRequest request) {
+        return ApiResponse.success(boxService.createBox(request, SecurityUtils.getCurrentUserId()));
     }
 
-    // 2. Lấy danh sách Box
+    // 2. Lấy danh sách Box của tôi
     @GetMapping
-    public ResponseEntity<Page<BoxResponse>> getMyBoxes(
-            @RequestHeader("X-User-Id") String userId,
+    public ApiResponse<Page<BoxResponse>> getMyBoxes(
+            @RequestParam(defaultValue = "all") String tab,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-
         Pageable pageable = PageRequest.of(page, size, Sort.by("lastActivityAt").descending());
-        Page<BoxResponse> responses = boxService.getMyBoxes(userId, pageable);
-        return ResponseEntity.ok(responses);
+        return ApiResponse.success(boxService.getMyBoxes(SecurityUtils.getCurrentUserId(), tab, search, pageable));
     }
 
     // 3. Lấy chi tiết Box
     @GetMapping("/{boxId}")
-    public ResponseEntity<BoxDetailResponse> getBoxDetail(
-            @PathVariable String boxId,
-            @RequestHeader("X-User-Id") String userId) {
-
-        BoxDetailResponse response = boxService.getBoxDetail(boxId, userId);
-        return ResponseEntity.ok(response);
+    public ApiResponse<BoxDetailResponse> getBoxDetail(@PathVariable String boxId) {
+        return ApiResponse.success(boxService.getBoxDetail(boxId, SecurityUtils.getCurrentUserId()));
     }
 
     // 4. Cập nhật thông tin Box
     @PutMapping("/{boxId}")
-    public ResponseEntity<BoxDetailResponse> updateBox(
+    public ApiResponse<BoxDetailResponse> updateBox(
             @PathVariable String boxId,
-            @RequestBody UpdateBoxRequest request,
-            @RequestHeader("X-User-Id") String userId) {
-
-        BoxDetailResponse response = boxService.updateBox(boxId, request, userId);
-        return ResponseEntity.ok(response);
+            @RequestBody UpdateBoxRequest request) {
+        return ApiResponse.success(boxService.updateBox(boxId, request, SecurityUtils.getCurrentUserId()));
     }
 
     // 5. Xóa Box
     @DeleteMapping("/{boxId}")
-    public ResponseEntity<Void> deleteBox(
-            @PathVariable String boxId,
-            @RequestHeader("X-User-Id") String userId) {
-
-        boxService.deleteBox(boxId, userId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> deleteBox(@PathVariable String boxId) {
+        boxService.deleteBox(boxId, SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     // 6. Rời khỏi Box
     @DeleteMapping("/{boxId}/leave")
-    public ResponseEntity<Void> leaveBox(
-            @PathVariable String boxId,
-            @RequestHeader("X-User-Id") String userId) {
-
-        boxService.leaveBox(boxId, userId);
-        return ResponseEntity.noContent().build();
+    public ApiResponse<Void> leaveBox(@PathVariable String boxId) {
+        boxService.leaveBox(boxId, SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
     }
+
     // 7. Gửi lời mời tham gia Box
     @PostMapping("/{boxId}/invites")
-    public ResponseEntity<Void> inviteMember(
+    public ApiResponse<Void> inviteMember(
             @PathVariable String boxId,
-            @Valid @RequestBody InviteMemberRequest request,
-            @RequestHeader("X-User-Id") String inviterId) {
-        boxService.inviteMember(boxId, request.getInviteeId(), inviterId);
-        return ResponseEntity.ok().build();
+            @Valid @RequestBody InviteMemberRequest request) {
+        boxService.inviteMember(boxId, request.getInviteeId(), SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     // 8. Chấp nhận hoặc Từ chối lời mời
     @PostMapping("/invitations/{invitationId}")
-    public ResponseEntity<Void> handleInvitation(
+    public ApiResponse<Void> handleInvitation(
             @PathVariable String invitationId,
-            @RequestParam boolean accept,
-            @RequestHeader("X-User-Id") String userId) {
-        boxService.handleInvitation(invitationId, accept, userId);
-        return ResponseEntity.ok().build();
+            @RequestParam boolean accept) {
+        boxService.handleInvitation(invitationId, accept, SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     // 9. Kích thành viên khỏi Box (Đuổi)
     @DeleteMapping("/{boxId}/members/{memberId}")
-    public ResponseEntity<Void> kickMember(
+    public ApiResponse<Void> kickMember(
             @PathVariable String boxId,
-            @PathVariable String memberId,
-            @RequestHeader("X-User-Id") String adminId) {
-        boxService.kickMember(boxId, memberId, adminId);
-        return ResponseEntity.noContent().build();
+            @PathVariable String memberId) {
+        boxService.kickMember(boxId, memberId, SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
     }
 
     // 10. Đổi quyền thành viên (Ví dụ: Cấp quyền ADMIN)
     @PutMapping("/{boxId}/members/{memberId}/role")
-    public ResponseEntity<Void> updateMemberRole(
+    public ApiResponse<Void> updateMemberRole(
             @PathVariable String boxId,
             @PathVariable String memberId,
-            @Valid @RequestBody UpdateMemberRoleRequest request,
-            @RequestHeader("X-User-Id") String adminId) {
-        boxService.updateMemberRole(boxId, memberId, request.getRole(), adminId);
-        return ResponseEntity.ok().build();
+            @Valid @RequestBody UpdateMemberRoleRequest request) {
+        boxService.updateMemberRole(boxId, memberId, request.getRole(), SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
+    }
+
+    // 11. Chuyển nhượng Chủ Phòng
+    @PutMapping("/{boxId}/transfer-ownership/{newOwnerId}")
+    public ApiResponse<Void> transferOwnership(
+            @PathVariable String boxId,
+            @PathVariable String newOwnerId) {
+        boxService.transferOwnership(boxId, newOwnerId, SecurityUtils.getCurrentUserId());
+        return ApiResponse.success(null);
+    }
+
+    // =========================================================================
+    // CÁC API PHỤC VỤ HIỂN THỊ DỮ LIỆU (ĐƯỢC PHỤC HỒI TỪ BẢN CŨ)
+    // =========================================================================
+
+    // 12. Lấy danh sách lời mời đang chờ của tôi
+    @GetMapping("/invitations/me")
+    public ApiResponse<List<BoxInvitationResponse>> getMyPendingInvitations(
+            @RequestParam(required = false) String search) {
+        return ApiResponse.success(boxService.getMyPendingInvitations(SecurityUtils.getCurrentUserId(), search));
+    }
+
+    // 13. Lấy danh sách thành viên trong Box
+    @GetMapping("/{boxId}/members")
+    public ApiResponse<Page<BoxMemberResponse>> getBoxMembers(
+            @PathVariable String boxId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(boxService.getBoxMembers(boxId, SecurityUtils.getCurrentUserId(), pageable));
+    }
+
+    // 14. Lấy danh sách hành trình trong Box
+    @GetMapping("/{boxId}/journeys")
+    public ApiResponse<Page<JourneyResponse>> getBoxJourneys(
+            @PathVariable String boxId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(boxService.getBoxJourneys(boxId, SecurityUtils.getCurrentUserId(), pageable));
     }
 }

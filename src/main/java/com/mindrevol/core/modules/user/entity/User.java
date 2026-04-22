@@ -3,7 +3,6 @@ package com.mindrevol.core.modules.user.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.auth.entity.SocialAccount;
-import com.mindrevol.core.common.entity.BaseEntity; // Sử dụng đúng đường dẫn có typo 'enitty' của bạn
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -29,8 +28,8 @@ import java.util.stream.Collectors;
     @Index(name = "idx_user_email", columnList = "email"),
     @Index(name = "idx_user_handle", columnList = "handle")
 })
-@SQLDelete(sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?")
-@Where(clause = "deleted_at IS NULL")
+@SQLDelete(sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND version = ?")
+@Where(clause = "deleted_at IS NULL") 
 public class User extends BaseEntity implements UserDetails {
 
     // [UUID] ID kế thừa từ BaseEntity (String)
@@ -52,7 +51,7 @@ public class User extends BaseEntity implements UserDetails {
 
     @Column(nullable = false, length = 100)
     private String fullname;
-
+    
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
@@ -68,14 +67,14 @@ public class User extends BaseEntity implements UserDetails {
     @Column(length = 20)
     @Builder.Default
     private String authProvider = "LOCAL";
-
+    
     @Column(name = "fcm_token")
     private String fcmToken;
-
+    
     @Column(nullable = false, length = 50)
     @Builder.Default
-    private String timezone = "UTC";
-
+    private String timezone = "UTC"; 
+    
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private Gender gender;
@@ -88,7 +87,7 @@ public class User extends BaseEntity implements UserDetails {
     )
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
-
+    
     @Column(columnDefinition = "bigint default 0")
     @Builder.Default
     private Long points = 0L;
@@ -126,6 +125,13 @@ public class User extends BaseEntity implements UserDetails {
 
     @Version
     private Long version;
+    
+    @Column(name = "current_streak")
+    @Builder.Default
+    private Integer currentStreak = 0;
+
+    @Column(name = "last_checkin_at")
+    private LocalDateTime lastCheckinAt;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

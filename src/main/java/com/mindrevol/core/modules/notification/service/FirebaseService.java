@@ -21,14 +21,14 @@ public class FirebaseService {
         this.firebaseMessaging = firebaseMessaging.orElse(null);
     }
 
-    public void sendNotification(String fcmToken, String title, String body, Map<String, String> data) {
+    public boolean sendNotification(String fcmToken, String title, String body, Map<String, String> data) {
         if (firebaseMessaging == null) {
             log.debug("Firebase is disabled. Skipping FCM notification to token: {}", fcmToken);
-            return;
+            return false;
         }
 
         if (fcmToken == null || fcmToken.isEmpty()) {
-            return;
+            return false;
         }
 
         try {
@@ -47,11 +47,12 @@ public class FirebaseService {
 
             // Gửi
             String response = firebaseMessaging.send(messageBuilder.build());
-            log.info("Sent FCM message: {}", response);
+            log.debug("Sent FCM message: {}", response);
+            return true;
 
         } catch (Exception e) {
-            log.error("Failed to send FCM message to token: {}", fcmToken, e);
-            // Không throw exception để tránh làm lỗi luồng chính
+            log.warn("Failed to send FCM message to token {}: {}", fcmToken, e.getMessage());
+            throw new IllegalStateException("FCM send failed", e);
         }
     }
 }

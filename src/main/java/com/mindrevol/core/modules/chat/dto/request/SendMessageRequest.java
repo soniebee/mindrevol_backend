@@ -1,6 +1,7 @@
 package com.mindrevol.core.modules.chat.dto.request;
 
 import com.mindrevol.core.modules.chat.entity.MessageType;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -20,4 +21,8 @@ public class SendMessageRequest {
     private Map<String, Object> metadata;
     
     private String clientSideId;
+    
+    private String conversationId;
+    
+    private String replyToMsgId;
 }

@@ -17,10 +17,12 @@ public class SystemAd extends BaseEntity {
     @Column(nullable = false)
     private String title;
 
-    @Column(name = "image_url", nullable = false)
+    // SỬA: Chuyển sang TEXT để chứa link ảnh dài
+    @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
     private String imageUrl;
 
-    @Column(name = "cta_link", nullable = false)
+    // SỬA: Chuyển sang TEXT để chứa link shopee, affiliate dài
+    @Column(name = "cta_link", nullable = false, columnDefinition = "TEXT")
     private String ctaLink;
 
     @Column(name = "cta_text", nullable = false)
@@ -34,13 +36,11 @@ public class SystemAd extends BaseEntity {
     @Builder.Default
     private int priority = 1;
 
-    // [MỚI] Loại quảng cáo
     @Enumerated(EnumType.STRING)
     @Column(name = "type")
     @Builder.Default
     private FeedItemType type = FeedItemType.INTERNAL_AD;
 
-    // [MỚI] Tags mục tiêu (Lưu dạng chuỗi "coffee,morning,chill")
     @Column(name = "target_tags")
     private String targetTags;
 }

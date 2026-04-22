@@ -16,6 +16,7 @@ import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import com.mindrevol.core.modules.notification.entity.NotificationType;
 import com.mindrevol.core.modules.notification.service.NotificationService;
+import com.mindrevol.core.modules.box.repository.BoxMemberRepository; // Import BoxMember
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,49 +38,54 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     private final JourneyParticipantRepository participantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
-    private final JourneyInvitationMapper invitationMapper; // [ĐÃ CẬP NHẬT] Dùng Mapper riêng
+    private final JourneyInvitationMapper invitationMapper; 
     private final JourneyRequestRepository journeyRequestRepository;
+    private final BoxMemberRepository boxMemberRepository; // Cần dùng để validate
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
     public void inviteFriendToJourney(String inviterId, String journeyId, String friendId) {
-        // Cần truy vấn User để lấy thông tin gửi thông báo và lưu vào Invitation
         User inviter = userRepository.findById(inviterId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Journey journey = journeyRepository.findById(journeyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Hành trình không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Journey not found"));
 
-        // 1. Kiểm tra người mời có trong nhóm không
-        JourneyParticipant inviterParticipant = participantRepository.findByJourneyIdAndUserId(journeyId, inviterId)
-                .orElseThrow(() -> new BadRequestException("Bạn không phải thành viên của hành trình này"));
-
-        // 2. Kiểm tra quyền mời (Private thì chỉ Owner được mời)
-        if (journey.getVisibility() == JourneyVisibility.PRIVATE) {
-            if (inviterParticipant.getRole() != JourneyRole.OWNER) {
-                throw new BadRequestException("Hành trình riêng tư: Chỉ chủ phòng mới được mời thành viên.");
+        // [CẬP NHẬT] Kiểm tra bạn bè được mời có nằm trong Box không
+        if (journey.getBox() != null) {
+            boolean isFriendInBox = boxMemberRepository.existsByBoxIdAndUserId(journey.getBox().getId(), friendId);
+            if (!isFriendInBox) {
+                throw new BadRequestException("Người này không thuộc Không gian chứa Hành trình. Xin hãy mời họ vào Không gian trước.");
             }
         }
 
-        // 3. Kiểm tra giới hạn thành viên (Dựa trên gói của CREATOR)
+        JourneyParticipant inviterParticipant = participantRepository.findByJourneyIdAndUserId(journeyId, inviterId)
+                .orElseThrow(() -> new BadRequestException("You are not a member of this journey"));
+
+        if (journey.getVisibility() == JourneyVisibility.PRIVATE) {
+            if (inviterParticipant.getRole() != JourneyRole.OWNER) {
+                throw new BadRequestException("Private journey: only the owner can invite members.");
+            }
+        }
+
         User owner = journey.getCreator();
         int limit = owner.isPremium() ? AppConstants.MAX_PARTICIPANTS_GOLD : AppConstants.MAX_PARTICIPANTS_FREE;
         
         long currentMembers = participantRepository.countByJourneyId(journeyId);
         if (currentMembers >= limit) {
-            throw new BadRequestException("Hành trình đã đạt giới hạn thành viên (" + limit + " người). Chủ phòng cần nâng cấp Gold để mở rộng.");
+            throw new BadRequestException("Journey has reached the member limit (" + limit + "). The owner needs to upgrade to Gold to expand it.");
         }
 
         User friend = userRepository.findById(friendId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (participantRepository.existsByJourneyIdAndUserId(journeyId, friendId)) {
-            throw new BadRequestException("Người này đã tham gia hành trình rồi");
+            throw new BadRequestException("This user has already joined the journey");
         }
 
         if (invitationRepository.existsByJourneyIdAndInviteeIdAndStatus(journeyId, friendId, JourneyInvitationStatus.PENDING)) {
-            throw new BadRequestException("Đã gửi lời mời cho người này rồi, hãy chờ họ phản hồi");
+            throw new BadRequestException("An invitation has already been sent to this user. Please wait for their response.");
         }
 
         JourneyInvitation invitation = JourneyInvitation.builder()
@@ -91,14 +97,17 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
 
         invitationRepository.save(invitation);
         
-        notificationService.sendAndSaveNotification(
+        notificationService.sendAndSaveNotificationFull(
                 friend.getId(),
                 inviter.getId(),
                 NotificationType.JOURNEY_INVITE,
-                "Lời mời tham gia hành trình 🚀",
-                inviter.getFullname() + " mời bạn tham gia: " + journey.getName(),
+                "Journey invitation: " + journey.getName(),
+                inviter.getFullname() + " invited you to join: " + journey.getName(),
                 journey.getId(), 
-                inviter.getAvatarUrl()
+                inviter.getAvatarUrl(),
+                "noti.journey.invite",
+                "[\"" + inviter.getFullname() + "\",\"" + journey.getName() + "\"]",
+                "PENDING"
         );
         log.info("User {} invited User {} to Journey {}", inviter.getId(), friendId, journeyId);
     }
@@ -106,29 +115,26 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     @Override
     @Transactional
     public void acceptInvitation(String currentUserId, String invitationId) {
-        // Cần truy vấn User để thêm vào JourneyParticipant và bắn Event
         User currentUser = userRepository.findById(currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         JourneyInvitation invitation = invitationRepository.findByIdAndInviteeId(invitationId, currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại hoặc không dành cho bạn"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found or not assigned to you"));
 
         if (invitation.getStatus() != JourneyInvitationStatus.PENDING) {
-            throw new BadRequestException("Lời mời này đã được xử lý hoặc hết hạn");
+            throw new BadRequestException("This invitation has already been processed or expired");
         }
 
         Journey journey = invitation.getJourney();
 
-        // Check lại giới hạn (Race condition protection)
         User owner = journey.getCreator();
         int limit = owner.isPremium() ? AppConstants.MAX_PARTICIPANTS_GOLD : AppConstants.MAX_PARTICIPANTS_FREE;
         
         long currentMembers = participantRepository.countByJourneyId(journey.getId());
         if (currentMembers >= limit) {
-             throw new BadRequestException("Rất tiếc, hành trình này vừa đủ người rồi (" + limit + " thành viên).");
+             throw new BadRequestException("Sorry, this journey is already full (" + limit + " members).");
         }
 
-        // Nếu đã là thành viên -> Dọn dẹp
         if (participantRepository.existsByJourneyIdAndUserId(journey.getId(), currentUserId)) {
             invitation.setStatus(JourneyInvitationStatus.ACCEPTED);
             invitationRepository.save(invitation);
@@ -136,7 +142,6 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
             return;
         }
 
-        // Vào nhóm
         JourneyParticipant participant = JourneyParticipant.builder()
                 .journey(journey) 
                 .user(currentUser)
@@ -151,6 +156,13 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
         invitation.setStatus(JourneyInvitationStatus.ACCEPTED);
         invitationRepository.save(invitation);
 
+        notificationService.updateActionStatusForNotification(
+                currentUserId,
+                NotificationType.JOURNEY_INVITE,
+                journey.getId(),
+                "ACCEPTED"
+        );
+
         cleanupPendingRequests(journey.getId(), currentUserId);
         eventPublisher.publishEvent(new JourneyJoinedEvent(journey, currentUser));
         
@@ -160,24 +172,29 @@ public class JourneyInvitationServiceImpl implements JourneyInvitationService {
     @Override
     @Transactional
     public void rejectInvitation(String currentUserId, String invitationId) {
-        // [TỐI ƯU] Không cần query User ở đây nữa!
         JourneyInvitation invitation = invitationRepository.findByIdAndInviteeId(invitationId, currentUserId)
-                .orElseThrow(() -> new ResourceNotFoundException("Lời mời không tồn tại"));
+                .orElseThrow(() -> new ResourceNotFoundException("Invitation not found"));
 
         if (invitation.getStatus() != JourneyInvitationStatus.PENDING) {
-            throw new BadRequestException("Lời mời không hợp lệ");
+            throw new BadRequestException("Invalid invitation");
         }
 
         invitation.setStatus(JourneyInvitationStatus.REJECTED);
         invitationRepository.save(invitation);
+
+        notificationService.updateActionStatusForNotification(
+                currentUserId,
+                NotificationType.JOURNEY_INVITE,
+                invitation.getJourney().getId(),
+                "REJECTED"
+        );
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<JourneyInvitationResponse> getMyPendingInvitations(String currentUserId, Pageable pageable) {
-        // [TỐI ƯU] Không cần query User ở đây nữa!
         return invitationRepository.findPendingInvitationsForUser(currentUserId, pageable)
-                .map(invitationMapper::toResponse); // Dùng đúng hàm toResponse của JourneyInvitationMapper
+                .map(invitationMapper::toResponse); 
     }
 
     private void cleanupPendingRequests(String journeyId, String userId) {

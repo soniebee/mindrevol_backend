@@ -1,5 +1,12 @@
 package com.mindrevol.core.modules.checkin.entity;
 
+import com.mindrevol.core.modules.checkin.entity.ActivityType;
+import com.mindrevol.core.modules.checkin.entity.Checkin;
+import com.mindrevol.core.modules.checkin.entity.CheckinComment;
+import com.mindrevol.core.modules.checkin.entity.CheckinReaction;
+import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
+import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
+import com.mindrevol.core.modules.checkin.entity.MediaType;
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.journey.entity.Journey;
 import com.mindrevol.core.modules.user.entity.User;
@@ -8,19 +15,19 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+
 @Entity
-@Table(name = "checkins",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_checkin_user_journey_date", columnNames = {"user_id", "journey_id", "checkin_date"})
-        },
-        indexes = {
-                @Index(name = "idx_checkin_journey", columnList = "journey_id"),
-                @Index(name = "idx_checkin_user", columnList = "user_id")
-        }
+@Table(name = "checkins", 
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uk_checkin_user_journey_date", columnNames = {"user_id", "journey_id", "checkin_date"})
+    },
+    indexes = {
+        @Index(name = "idx_checkin_journey", columnList = "journey_id"),
+        @Index(name = "idx_checkin_user", columnList = "user_id")
+    }
 )
 @Getter
 @Setter
@@ -33,8 +40,9 @@ public class Checkin extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // [ĐÃ SỬA] Cho phép journey_id được null để lưu trữ cá nhân
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "journey_id", nullable = false)
+    @JoinColumn(name = "journey_id", nullable = true)
     private Journey journey;
 
     @Column(columnDefinition = "TEXT")
@@ -43,24 +51,14 @@ public class Checkin extends BaseEntity {
     @Column(name = "image_url")
     private String imageUrl;
 
-    // [THÊM MỚI] Lưu ID của file trên ImageKit để phục vụ xóa
     @Column(name = "image_file_id")
     private String imageFileId;
 
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
-    // THÊM: Lưu ID của Chapter nếu tính năng Chapter được bật
-    @Column(name = "chapter_id")
-    private String chapterId;
-
-    // THÊM: Thời gian hết hạn (Dùng cho bài đăng UNSORTED 14 ngày)
-    @Column(name = "expires_at")
-    private LocalDateTime expiresAt;
-    // --- CÁC TRƯỜNG CONTEXT/PLATFORM (GIỮ NGUYÊN) ---
-
-    @Column(length = 50)
-    private String emotion; // Ví dụ: "🔥", "🌿", "CHILL"
+    @Column(length = 50) 
+    private String emotion; 
 
     @Enumerated(EnumType.STRING)
     @Column(name = "activity_type")
@@ -68,17 +66,24 @@ public class Checkin extends BaseEntity {
     private ActivityType activityType = ActivityType.DEFAULT;
 
     @Column(name = "activity_name")
-    private String activityName;
+    private String activityName; 
 
     @Column(name = "location_name")
     private String locationName;
+
+    // [THÊM MỚI] Lưu tọa độ để vẽ lên Bản đồ
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
 
     @ElementCollection
     @CollectionTable(name = "checkin_tags", joinColumns = @JoinColumn(name = "checkin_id"))
     @Column(name = "tag")
     @Builder.Default
     private List<String> tags = new ArrayList<>();
-
+    
     @Enumerated(EnumType.STRING)
     @Column(name = "media_type", nullable = false)
     @Builder.Default
@@ -86,8 +91,6 @@ public class Checkin extends BaseEntity {
 
     @Column(name = "video_url")
     private String videoUrl;
-
-    // ----------------------------------------
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -110,9 +113,9 @@ public class Checkin extends BaseEntity {
     @Builder.Default
     private List<CheckinReaction> reactions = new ArrayList<>();
 
+    @PrePersist
     public void prePersist() {
         if (this.checkinDate == null) this.checkinDate = LocalDate.now();
         if (this.tags == null) this.tags = new ArrayList<>();
     }
 }
-

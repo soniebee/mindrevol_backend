@@ -21,14 +21,15 @@ public class UserActiveJourneyResponse {
     private LocalDate startDate;
     private LocalDate endDate; 
 
-    // --- CÁC TRƯỜNG CHO CARD UI ---
     private String thumbnailUrl;       
     private String theme;              
-    
-    // --- [THÊM MỚI] ---
     private String themeColor;
     private String avatar;
-    // ------------------
+
+    // 🔥 THÊM THÔNG TIN BOX ĐỂ FILTER TRÊN PROFILE
+    private String boxId;
+    private String boxName;
+    private String boxAvatar;
 
     private List<String> memberAvatars;
     private int totalMembers;          
@@ -36,5 +37,9 @@ public class UserActiveJourneyResponse {
 
     private int totalCheckins;         
     private boolean hasNewUpdates;     
+    
+    // Cờ kiểm tra xem user đang chọn Ẩn hay Hiện trên profile
+    private boolean isProfileVisible;
+    
     private List<CheckinResponse> checkins; 
 }

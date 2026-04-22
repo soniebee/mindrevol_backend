@@ -23,14 +23,19 @@ public class UserProfileResponse {
     private OffsetDateTime joinedAt;
     private String status;
     private Set<String> roles;
-    private long followerCount; // Có thể ẩn nếu chưa dùng
-    private long followingCount; // Có thể ẩn nếu chưa dùng
-    private boolean isFollowedByCurrentUser; // Logic follow (nếu có)
+    private long followerCount; 
+    private long followingCount; 
+    private boolean isFollowedByCurrentUser; 
     private long friendCount; 
 
-    // --- CÁC TRƯỜNG MỚI CHO TÍNH NĂNG XEM PROFILE ---
-    private FriendshipStatus friendshipStatus; // NONE, PENDING, ACCEPTED, DECLINED
-    private boolean isBlockedByMe;   // Mình có chặn họ không
-    private boolean isBlockedByThem; // Họ có chặn mình không (để xử lý UI ẩn nội dung)
-    private boolean isMe;            // Đây có phải là mình không
+    // --- CÁC TRƯỜNG CHO TÍNH NĂNG XEM PROFILE ---
+    private FriendshipStatus friendshipStatus; 
+    private boolean isBlockedByMe;   
+    private boolean isBlockedByThem; 
+    private boolean isMe;            
+    private Long totalCheckins;
+    private Integer currentStreak;
+
+    // [THÊM MỚI] Gửi accountType (FREE/GOLD) xuống cho Frontend
+    private String accountType; 
 }

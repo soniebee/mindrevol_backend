@@ -20,4 +20,6 @@ public class AppConstants {
     
     // Giới hạn thời gian upload ảnh cũ (phút)
     public static final long ALLOWED_PHOTO_AGE_MINUTES = 30;
+ // Thêm dòng này vào trong class AppConstants
+    public static final String QUEUE_RECAP_GENERATION = "recap.generation.queue";
 }

@@ -5,6 +5,9 @@ import com.mindrevol.core.modules.user.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+
+import java.time.LocalDateTime;
+
 import org.hibernate.annotations.SQLRestriction;
 
 @Entity
@@ -28,4 +31,8 @@ public class BoxMember extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private BoxRole role;
+    
+    @Column(name = "joined_at")
+    @Builder.Default
+    private LocalDateTime joinedAt = LocalDateTime.now();
 }

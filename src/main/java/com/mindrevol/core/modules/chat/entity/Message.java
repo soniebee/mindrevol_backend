@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/backend/modules/chat/entity/Message.java
 package com.mindrevol.core.modules.chat.entity;
 
 import com.mindrevol.core.common.entity.BaseEntity;
@@ -8,6 +9,8 @@ import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -21,7 +24,6 @@ import java.util.Map;
 @SuperBuilder
 public class Message extends BaseEntity {
 
-    // ID tạm do Client sinh ra (UUID string) để Optimistic UI
     @Column(name = "client_side_id") 
     private String clientSideId; 
 
@@ -33,9 +35,8 @@ public class Message extends BaseEntity {
     @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receiver_id", nullable = false)
-    private User receiver;
+    // [ĐÃ XÓA] receiver_id vì tin nhắn nhóm không gửi cho cá nhân cụ thể
+    // Nếu muốn lưu người nhận cụ thể (DM), hệ thống dựa vào ConversationParticipant
 
     @Column(columnDefinition = "TEXT")
     private String content;
@@ -56,7 +57,14 @@ public class Message extends BaseEntity {
     @Builder.Default
     private boolean isDeleted = false;
 
-    // [SỬA] Long -> String (ID tin nhắn gốc)
     @Column(name = "reply_to_msg_id")
     private String replyToMsgId;
+
+    // [THÊM MỚI] Liên kết Reactions
+    @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<MessageReaction> reactions = new ArrayList<>();
+    
+    @Column(name = "is_pinned") @Builder.Default 
+    private boolean isPinned = false;
 }

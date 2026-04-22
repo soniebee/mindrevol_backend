@@ -4,6 +4,7 @@ import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.modules.checkin.dto.response.CheckinReactionDetailResponse;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
 import com.mindrevol.core.modules.checkin.entity.CheckinReaction;
+import com.mindrevol.core.modules.checkin.event.CheckinReactedEvent;
 import com.mindrevol.core.modules.checkin.mapper.ReactionMapper;
 import com.mindrevol.core.modules.checkin.repository.CheckinCommentRepository;
 import com.mindrevol.core.modules.checkin.repository.CheckinReactionRepository;
@@ -12,6 +13,7 @@ import com.mindrevol.core.modules.checkin.service.ReactionService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class ReactionServiceImpl implements ReactionService {
     private final CheckinRepository checkinRepository;
     private final UserRepository userRepository;
     private final ReactionMapper reactionMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -48,6 +51,8 @@ public class ReactionServiceImpl implements ReactionService {
                 reaction.setEmoji(emoji);
                 reaction.setMediaUrl(mediaUrl);
                 reactionRepository.save(reaction);
+
+                publishCheckinReactedEvent(checkin, userId, emoji);
             }
         } else {
             User user = userRepository.findById(userId)
@@ -60,7 +65,22 @@ public class ReactionServiceImpl implements ReactionService {
                     .mediaUrl(mediaUrl)
                     .build();
             reactionRepository.save(newReaction);
+
+            publishCheckinReactedEvent(checkin, userId, emoji);
         }
+    }
+
+    private void publishCheckinReactedEvent(Checkin checkin, String reactorId, String emoji) {
+        if (checkin.getUser().getId().equals(reactorId)) {
+            return;
+        }
+
+        eventPublisher.publishEvent(CheckinReactedEvent.builder()
+                .checkinId(checkin.getId())
+                .reactorId(reactorId)
+                .checkinOwnerId(checkin.getUser().getId())
+                .emoji(emoji)
+                .build());
     }
 
     @Override
@@ -102,7 +122,7 @@ public class ReactionServiceImpl implements ReactionService {
         List<CheckinReactionDetailResponse> all = new ArrayList<>();
         all.addAll(reactions);
         all.addAll(comments);
-
+        
         return all.stream()
                 .sorted(Comparator.comparing(CheckinReactionDetailResponse::getCreatedAt).reversed())
                 .limit(3)

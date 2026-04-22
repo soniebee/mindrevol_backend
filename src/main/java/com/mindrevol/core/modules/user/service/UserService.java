@@ -6,8 +6,10 @@ import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
 import com.mindrevol.core.modules.user.dto.response.UserDataExport;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserSummaryResponse;
+import com.mindrevol.core.modules.user.entity.AccountType;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.entity.UserSettings;
+import com.mindrevol.core.modules.checkin.dto.response.CalendarRecapResponse;
 import com.mindrevol.core.modules.journey.dto.response.JourneyResponse;
 import org.springframework.web.multipart.MultipartFile; // Import này
 
@@ -40,9 +42,15 @@ public interface UserService {
 
     UserSettings updateNotificationSettings(String userId, UpdateNotificationSettingsRequest request);
 
+    UserSettings resetNotificationSettings(String userId);
+
     void createDefaultSettings(User user);
 
     List<LinkedAccountResponse> getLinkedAccounts(String userId);
 
     void unlinkSocialAccount(String userId, String provider);
+
+	List<CalendarRecapResponse> getUserCalendarRecap(String userId, int year, int month);
+
+	void upgradeUserTier(String userId, AccountType newType, int durationDays);
 }
