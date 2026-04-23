@@ -1,4 +1,4 @@
-// File: src/main/java/com/mindrevol/backend/modules/chat/controller/ChatSocketController.java (CẬP NHẬT)
+// File: src/main/java/com/mindrevol/core/modules/chat/controller/ChatSocketController.java
 package com.mindrevol.core.modules.chat.controller;
 
 import com.mindrevol.core.modules.chat.dto.request.TypingEvent;

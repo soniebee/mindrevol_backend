@@ -50,19 +50,16 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final MagicLinkTokenRepository magicLinkTokenRepository;
-    // ĐÃ XÓA OtpTokenRepository
     
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final UserService userService;
     private final AsyncTaskProducer asyncTaskProducer;
-    private final RedisTemplate<String, Object> redisTemplate; // Inject RedisTemplate
+    private final RedisTemplate<String, Object> redisTemplate; 
     
-    // Services tách ra
     private final SessionService sessionService;
     private final SocialLoginFactory socialLoginFactory;
     
-    // Inject các bean cũ
     private final RestTemplate restTemplate;
     private final AppleAuthUtil appleAuthUtil;
     private final ObjectMapper objectMapper;
@@ -70,7 +67,6 @@ public class AuthServiceImpl implements AuthService {
     @Value("${tiktok.client-key:}") private String tiktokClientKey;
     @Value("${tiktok.client-secret:}") private String tiktokClientSecret;
 
-    // Hằng số Key Redis
     private static final String OTP_PREFIX = "auth:otp:code:";       
     private static final String OTP_LIMIT_PREFIX = "auth:otp:limit:"; 
     private static final String OTP_RETRY_PREFIX = "auth:otp:retry:"; 
@@ -81,12 +77,10 @@ public class AuthServiceImpl implements AuthService {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (user.getStatus() != UserStatus.ACTIVE) throw new DisabledException("Tài khoản bị khóa.");
+        
+        // Lưu Session + Trả Token (Bao gồm thông tin thiết bị từ servletRequest)
         return sessionService.createTokenAndSession(user, servletRequest);
     }
-
-    // ==================================================================================
-    // SOCIAL LOGIN LOGIC
-    // ==================================================================================
 
     private JwtResponse processUnifiedSocialLogin(String providerName, Object requestData, HttpServletRequest servletRequest) {
         SocialLoginStrategy strategy = socialLoginFactory.getStrategy(providerName);
@@ -154,33 +148,25 @@ public class AuthServiceImpl implements AuthService {
         return processUnifiedSocialLogin("apple", request, servletRequest);
     }
 
-    // ==================================================================================
-    // OTP REDIS IMPLEMENTATION
-    // ==================================================================================
-
     @Override
     public void sendOtpLogin(SendOtpRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Email này chưa đăng ký tài khoản."));
 
-        // 1. Kiểm tra Rate Limit (60s)
         String limitKey = OTP_LIMIT_PREFIX + request.getEmail();
         if (Boolean.TRUE.equals(redisTemplate.hasKey(limitKey))) {
             Long expire = redisTemplate.getExpire(limitKey, TimeUnit.SECONDS);
             throw new BadRequestException("Vui lòng đợi " + expire + " giây trước khi gửi lại mã.");
         }
 
-        // 2. Sinh mã & Key
         String newCode = String.format("%06d", new Random().nextInt(999999));
         String otpKey = OTP_PREFIX + request.getEmail();
         String retryKey = OTP_RETRY_PREFIX + request.getEmail();
 
-        // 3. Lưu vào Redis
         redisTemplate.opsForValue().set(otpKey, newCode, 5, TimeUnit.MINUTES);
-        redisTemplate.delete(retryKey); // Reset retry count
-        redisTemplate.opsForValue().set(limitKey, "1", 60, TimeUnit.SECONDS); // Set Rate Limit
+        redisTemplate.delete(retryKey); 
+        redisTemplate.opsForValue().set(limitKey, "1", 60, TimeUnit.SECONDS); 
 
-        // 4. Gửi Email (Async)
         String subject = "Mã xác thực đăng nhập MindRevol";
         String content = "<h1>Mã OTP của bạn: " + newCode + "</h1><p>Hết hạn sau 5 phút.</p>";
         EmailTask task = EmailTask.builder().toEmail(user.getEmail()).subject(subject).content(content).retryCount(0).build();
@@ -197,11 +183,9 @@ public class AuthServiceImpl implements AuthService {
         String otpKey = OTP_PREFIX + request.getEmail();
         String retryKey = OTP_RETRY_PREFIX + request.getEmail();
 
-        // 1. Kiểm tra OTP tồn tại
         String cachedOtp = (String) redisTemplate.opsForValue().get(otpKey);
         if (cachedOtp == null) throw new BadRequestException("Mã OTP đã hết hạn hoặc chưa được gửi.");
 
-        // 2. Kiểm tra số lần sai
         Integer retryCount = (Integer) redisTemplate.opsForValue().get(retryKey);
         if (retryCount == null) retryCount = 0;
         if (retryCount >= 5) {
@@ -210,14 +194,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Bạn nhập sai quá 5 lần. Vui lòng yêu cầu mã mới.");
         }
 
-        // 3. So sánh
         if (!cachedOtp.equals(request.getOtpCode())) {
             redisTemplate.opsForValue().increment(retryKey);
             redisTemplate.expire(retryKey, 5, TimeUnit.MINUTES);
             throw new BadRequestException("Mã OTP không chính xác. (Sai " + (retryCount + 1) + "/5 lần)");
         }
 
-        // 4. Thành công -> Dọn dẹp
         redisTemplate.delete(otpKey);
         redisTemplate.delete(retryKey);
         redisTemplate.delete(OTP_LIMIT_PREFIX + request.getEmail());
@@ -228,10 +210,6 @@ public class AuthServiceImpl implements AuthService {
         }
         return sessionService.createTokenAndSession(user, servletRequest);
     }
-
-    // ==================================================================================
-    // MAGIC LINK & PROFILE
-    // ==================================================================================
 
     @Override
     public void sendMagicLink(String email) {

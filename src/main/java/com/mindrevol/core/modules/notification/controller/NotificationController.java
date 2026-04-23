@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/core/modules/notification/controller/NotificationController.java
 package com.mindrevol.core.modules.notification.controller;
 
 import com.mindrevol.core.common.dto.ApiResponse;

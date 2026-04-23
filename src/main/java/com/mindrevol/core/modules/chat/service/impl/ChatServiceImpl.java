@@ -1,3 +1,4 @@
+// File: src/main/java/com/mindrevol/core/modules/chat/service/impl/ChatServiceImpl.java
 package com.mindrevol.core.modules.chat.service.impl;
 
 import com.mindrevol.core.common.dto.CursorPageResponse;
@@ -13,12 +14,11 @@ import com.mindrevol.core.modules.chat.repository.MessageReactionRepository;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
 import com.mindrevol.core.modules.box.entity.Box;
-import com.mindrevol.core.modules.box.repository.BoxRepository; // [THÊM MỚI]
+import com.mindrevol.core.modules.box.repository.BoxRepository; 
 import com.mindrevol.core.modules.chat.dto.event.MessageReadEvent;
 import com.mindrevol.core.modules.chat.dto.request.SendMessageRequest;
 import com.mindrevol.core.modules.chat.dto.response.ConversationResponse;
 import com.mindrevol.core.modules.chat.dto.response.MessageResponse;
-import com.mindrevol.core.modules.chat.entity.*;
 import com.mindrevol.core.modules.chat.mapper.ChatMapper;
 import com.mindrevol.core.modules.chat.repository.ConversationRepository;
 import com.mindrevol.core.modules.chat.repository.MessageRepository;
@@ -31,9 +31,7 @@ import com.mindrevol.core.modules.user.repository.UserRepository;
 import com.mindrevol.core.modules.user.service.UserBlockService;
 import com.mindrevol.core.modules.user.service.UserPresenceService; 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,23 +91,44 @@ public class ChatServiceImpl implements ChatService {
     public MessageResponse sendMessage(String senderId, SendMessageRequest request) { 
         Conversation conversation;
         User sender = userRepository.getReferenceById(senderId);
+        String receiverId = null;
 
+        // 1. Xác định Conversation và Receiver
         if (request.getConversationId() != null && !request.getConversationId().isEmpty()) {
             conversation = conversationRepository.findById(request.getConversationId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cuộc trò chuyện"));
+            
+            // Nếu là chat 1-1, lấy ID người nhận để chuẩn bị kiểm tra chặn
+            if (conversation.getBoxId() == null) {
+                receiverId = conversation.getParticipants().stream()
+                        .filter(p -> !p.getUser().getId().equals(senderId))
+                        .map(p -> p.getUser().getId())
+                        .findFirst().orElse(null);
+            }
         } else {
-            String receiverId = request.getReceiverId(); 
+            receiverId = request.getReceiverId(); 
             if (receiverId == null || receiverId.isEmpty()) throw new BadRequestException("Receiver ID không được để trống");
-            if (userBlockService.isBlocked(receiverId, senderId)) throw new BadRequestException("Bạn bị chặn.");
-
+            
             List<Conversation> existingConvs = conversationRepository.findByUsers(senderId, receiverId);
             if (existingConvs.isEmpty()) {
+                // Nếu chưa có đoạn chat, kiểm tra chặn trước khi tạo mới
+                if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
+                    throw new BadRequestException("Không thể bắt đầu trò chuyện do đã chặn người dùng này.");
+                }
                 conversation = createNewConversation(senderId, receiverId);
             } else {
                 conversation = existingConvs.get(0);
             }
         }
 
+        // 2. [SỬA BUG 4] KIỂM TRA CHẶN TRƯỚC KHI GỬI TIN NHẮN (Áp dụng cho mọi tin nhắn 1-1)
+        if (receiverId != null) {
+            if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
+                throw new BadRequestException("Không thể gửi tin nhắn. Người dùng này đã bị chặn.");
+            }
+        }
+
+        // 3. Tiến hành lưu tin nhắn
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(sender)
@@ -123,6 +142,7 @@ public class ChatServiceImpl implements ChatService {
 
         message = messageRepository.save(message);
 
+        // 4. Cập nhật hội thoại
         String previewContent = message.getType() == MessageType.IMAGE ? "[Hình ảnh]" : 
                                 message.getType() == MessageType.VOICE ? "[Ghi âm]" : 
                                 message.getType() == MessageType.FILE ? "[Tệp đính kèm]" : message.getContent();
@@ -138,26 +158,20 @@ public class ChatServiceImpl implements ChatService {
         }
         participantRepository.saveAll(participants);
 
-        // Sử dụng Hàm Helper an toàn
         MessageResponse response = mapToSafeMessageResponse(message);
         messagingTemplate.convertAndSend("/topic/chat." + conversation.getId(), response);
 
         // Logic Notification
-        if (conversation.getBoxId() == null) {
-            User receiver = conversation.getParticipants().stream()
-                .map(ConversationParticipant::getUser)
-                .filter(u -> !u.getId().equals(senderId))
-                .findFirst().orElse(null);
-
-            if (receiver != null && !userPresenceService.isUserOnline(receiver.getId())) {
-                ConversationParticipant receiverParticipant = participantRepository.findByConversationIdAndUserId(conversation.getId(), receiver.getId()).orElse(null);
+        if (conversation.getBoxId() == null && receiverId != null) {
+            if (!userPresenceService.isUserOnline(receiverId)) {
+                ConversationParticipant receiverParticipant = participantRepository.findByConversationIdAndUserId(conversation.getId(), receiverId).orElse(null);
                 if (receiverParticipant == null || !receiverParticipant.isMuted()) {
                     String notiMessage = message.getType() == MessageType.IMAGE ? sender.getFullname() + " đã gửi 1 hình ảnh"
                                        : message.getType() == MessageType.VOICE ? sender.getFullname() + " đã gửi 1 tin nhắn thoại"
                                        : sender.getFullname() + ": " + message.getContent();
 
                     notificationService.sendAndSaveNotification(
-                            receiver.getId(), senderId, NotificationType.DM_NEW_MESSAGE,
+                            receiverId, senderId, NotificationType.DM_NEW_MESSAGE,
                             "Tin nhắn mới", notiMessage, conversation.getId(), sender.getAvatarUrl()
                     );
                 }
@@ -421,19 +435,19 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public ConversationResponse getOrCreateConversation(String senderId, String receiverId) { 
-        if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
-            throw new BadRequestException("Không thể bắt đầu cuộc trò chuyện do chặn người dùng.");
-        }
-
         List<Conversation> existingConvs = conversationRepository.findByUsers(senderId, receiverId);
-        Conversation conversation;
         
-        if (existingConvs.isEmpty()) {
-             conversation = createNewConversation(senderId, receiverId);
-        } else {
-             conversation = existingConvs.get(0);
+        // [SỬA BUG 4] Nếu đã từng chat, VẪN TRẢ VỀ DỮ LIỆU ĐỂ XEM LẠI LỊCH SỬ kể cả khi đang chặn nhau
+        if (!existingConvs.isEmpty()) {
+            return mapToConversationResponse(existingConvs.get(0), senderId);
+        }
+        
+        // Chỉ ném lỗi cấm tạo phòng CHỈ KHI chưa từng chat bao giờ
+        if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
+            throw new BadRequestException("Không thể bắt đầu cuộc trò chuyện với người đã chặn.");
         }
 
+        Conversation conversation = createNewConversation(senderId, receiverId);
         return mapToConversationResponse(conversation, senderId);
     }
 
@@ -466,7 +480,6 @@ public class ChatServiceImpl implements ChatService {
     public void addUserToBoxConversation(String boxId, String userId) {
         Conversation conv = conversationRepository.findByBoxId(boxId).orElse(null);
         
-        // BỔ SUNG: Nếu Box cũ chưa có nhóm chat, tự động tạo mới
         if (conv == null) {
             Box box = boxRepository.findById(boxId).orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Box"));
             conv = createBoxConversation(boxId, box.getName(), box.getOwner().getId());
@@ -530,8 +543,6 @@ public class ChatServiceImpl implements ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cuộc trò chuyện của Không gian này"));
         return mapToConversationResponse(conv, userId);
     }
-    
-// Thêm vào: src/main/java/com/mindrevol/backend/modules/chat/service/impl/ChatServiceImpl.java
     
     @Override
     @Transactional(readOnly = true)
