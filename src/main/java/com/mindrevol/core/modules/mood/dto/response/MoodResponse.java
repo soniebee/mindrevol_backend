@@ -19,11 +19,16 @@ public class MoodResponse {
     private String fullname;
     private String avatarUrl;
 
-    private String icon; // Ví dụ: "ic_mood_happy"
+    private String icon; 
     private String message;
+    private String spotifyTrackId;
+    
+    private String activity;
+    private String location;
+    private String weather;
 
-    private LocalDateTime updatedAt; // Để hiển thị thời gian đăng (ví dụ: 5 phút trước)
-    private LocalDateTime expiresAt; // Để Frontend đếm ngược hoặc tự ẩn
+    private LocalDateTime updatedAt; 
+    private LocalDateTime expiresAt; 
 
     private List<MoodReactionResponse> reactions;
 }

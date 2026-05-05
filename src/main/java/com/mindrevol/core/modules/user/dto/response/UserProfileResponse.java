@@ -35,7 +35,8 @@ public class UserProfileResponse {
     private boolean isMe;            
     private Long totalCheckins;
     private Integer currentStreak;
-
-    // [THÊM MỚI] Gửi accountType (FREE/GOLD) xuống cho Frontend
     private String accountType; 
+
+    // [THÊM MỚI] Cờ onboarding cho Frontend
+    private boolean hasCompletedOnboarding;
 }

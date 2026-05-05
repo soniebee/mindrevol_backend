@@ -79,4 +79,14 @@ public interface JourneyRepository extends JpaRepository<Journey, String> {
            "j.id IN (SELECT jp.journey.id FROM JourneyParticipant jp WHERE jp.user.id = :userId) " +
            "OR j.box.id IN (SELECT bm.box.id FROM BoxMember bm WHERE bm.user.id = :userId)")
     List<Journey> findAllJourneysForUser(@Param("userId") String userId);
+    
+ // THÊM MỚI: Truy vấn lấy tất cả hành trình (kể cả đã hết hạn) để hiển thị trên Profile
+    @Query("SELECT DISTINCT j FROM Journey j " +
+           "LEFT JOIN FETCH j.participants p " +
+           "LEFT JOIN FETCH p.user u " +
+           "WHERE j.status <> 'ARCHIVED' " +
+           "AND (j.id IN (SELECT jp.journey.id FROM JourneyParticipant jp WHERE jp.user.id = :userId) " +
+           "OR j.box.id IN (SELECT bm.box.id FROM BoxMember bm WHERE bm.user.id = :userId)) " +
+           "ORDER BY j.createdAt DESC")
+    List<Journey> findAllJourneysByUserIdWithMembers(@Param("userId") String userId);
 }

@@ -3,39 +3,26 @@ package com.mindrevol.core.modules.mood.mapper;
 import com.mindrevol.core.modules.mood.dto.response.MoodReactionResponse;
 import com.mindrevol.core.modules.mood.dto.response.MoodResponse;
 import com.mindrevol.core.modules.mood.entity.Mood;
-import org.springframework.stereotype.Component;
+import com.mindrevol.core.modules.mood.entity.MoodReaction;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-import java.util.List;
-import java.util.stream.Collectors;
+@Mapper(componentModel = "spring")
+public interface MoodMapper {
 
-@Component
-public class MoodMapper {
+    // Ánh xạ từ Mood Entity sang MoodResponse DTO
+    @Mapping(source = "box.id", target = "boxId")
+    @Mapping(source = "user.id", target = "userId")
+    @Mapping(source = "user.fullname", target = "fullname")
+    @Mapping(source = "user.avatarUrl", target = "avatarUrl")
+    // Các trường cùng tên như icon, message, spotifyTrackId, expiresAt, updatedAt... sẽ tự động map
+    MoodResponse toResponse(Mood mood);
 
-    public MoodResponse toResponse(Mood mood) {
-        if (mood == null) {
-            return null;
-        }
-
-        List<MoodReactionResponse> reactionResponses = mood.getReactions().stream()
-                .map(r -> MoodReactionResponse.builder()
-                        .userId(r.getUser().getId())
-                        .fullname(r.getUser().getFullname())
-                        .avatarUrl(r.getUser().getAvatarUrl())
-                        .emoji(r.getEmoji())
-                        .build())
-                .collect(Collectors.toList());
-
-        return MoodResponse.builder()
-                .id(mood.getId())
-                .boxId(mood.getBox().getId())
-                .userId(mood.getUser().getId())
-                .fullname(mood.getUser().getFullname())
-                .avatarUrl(mood.getUser().getAvatarUrl())
-                .icon(mood.getIcon())
-                .message(mood.getMessage())
-                .updatedAt(mood.getUpdatedAt())
-                .expiresAt(mood.getExpiresAt())
-                .reactions(reactionResponses)
-                .build();
-    }
+    // Ánh xạ từ MoodReaction Entity sang MoodReactionResponse DTO
+    // MapStruct sẽ tự động dùng hàm này để map cái List<MoodReaction> ở trên
+    @Mapping(source = "user.id", target = "userId")
+    @Mapping(source = "user.fullname", target = "fullname")
+    @Mapping(source = "user.avatarUrl", target = "avatarUrl")
+    // Trường emoji cùng tên tự động map
+    MoodReactionResponse toReactionResponse(MoodReaction reaction);
 }

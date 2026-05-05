@@ -25,6 +25,7 @@ import com.mindrevol.core.modules.user.dto.request.ChangePasswordDto;
 import com.mindrevol.core.modules.user.dto.request.FollowUserDto;
 import com.mindrevol.core.modules.user.dto.request.UpdateProfileDto;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
+import com.mindrevol.core.modules.user.dto.response.NotificationSettingsResponse;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
 import com.mindrevol.core.modules.user.dto.response.UserPublicResponse;
 import com.mindrevol.core.modules.user.entity.AccountType;
@@ -158,33 +159,24 @@ public class UserServiceImpl implements UserService {
     public void deleteMyAccount(String userId) { 
         User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        // 1. Đổi email và handle
         long timestamp = System.currentTimeMillis();
         user.setEmail(user.getEmail() + "_deleted_" + timestamp);
         user.setHandle(user.getHandle() + "_deleted_" + timestamp);
-        
-        // [QUAN TRỌNG NHẤT]: Ép Hibernate phải cập nhật Email xuống Database ngay lập tức!
         userRepository.saveAndFlush(user); 
         
-        // 2. Xóa liên kết mạng xã hội
         List<SocialAccount> socialAccounts = socialAccountRepository.findAllByUserId(userId);
         socialAccountRepository.deleteAll(socialAccounts);
-        
-        // 3. Xóa user (Kích hoạt @SQLDelete)
         userRepository.delete(user);
     }
 
     @Override
     public UserDataExport exportMyData(String userId) { 
         User user = getUserById(userId);
-
         var checkins = checkinRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(checkinMapper::toResponse).collect(Collectors.toList());
-
         var friends = friendshipRepository.findAllAcceptedFriendsList(userId).stream()
                 .map(f -> friendshipMapper.toResponse(f, userId)) 
                 .collect(Collectors.toList());
-
         return UserDataExport.builder()
                 .profile(buildUserProfile(user, user))
                 .checkins(checkins)
@@ -208,24 +200,17 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
     }
 
-    // Helper: Lấy ngày hiện tại theo Timezone của User
     private LocalDate getTodayInUserTimezone(User user) {
         String tz = user.getTimezone() != null ? user.getTimezone() : "UTC";
-        try {
-            return LocalDate.now(ZoneId.of(tz));
-        } catch (Exception e) {
-            return LocalDate.now(ZoneId.of("UTC"));
-        }
+        try { return LocalDate.now(ZoneId.of(tz)); } 
+        catch (Exception e) { return LocalDate.now(ZoneId.of("UTC")); }
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<JourneyResponse> getUserRecaps(String userId) { 
         User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        // [FIX] Lấy ngày hiện tại theo múi giờ của user để truyền vào repository
         LocalDate today = getTodayInUserTimezone(user);
-        
         List<Journey> completedJourneys = journeyRepository.findCompletedJourneysByUserId(userId, today);
         return completedJourneys.stream()
                 .map(journeyMapper::toResponse)
@@ -240,7 +225,6 @@ public class UserServiceImpl implements UserService {
                     User user = getUserById(userId);
                     return UserSettings.builder().user(user).build();
                 });
-
         normalizeSimpleCategorySettings(settings);
         return userSettingsRepository.save(settings);
     }
@@ -250,71 +234,38 @@ public class UserServiceImpl implements UserService {
     public UserSettings updateNotificationSettings(String userId, UpdateNotificationSettingsRequest request) {
         UserSettings settings = getNotificationSettings(userId);
 
-        boolean hasUnifiedCategoryToggle = request.getCommentEnabled() != null
-                || request.getReactionEnabled() != null
-                || request.getMessageEnabled() != null
-                || request.getJourneyEnabled() != null
-                || request.getFriendRequestEnabled() != null
-                || request.getBoxInviteEnabled() != null
-                || request.getMentionEnabled() != null;
-
-        // Category-only UI does not expose channel masters; keep them ON to avoid hidden blockers.
+        boolean hasUnifiedCategoryToggle = request.getCommentEnabled() != null || request.getReactionEnabled() != null || request.getMessageEnabled() != null || request.getJourneyEnabled() != null || request.getFriendRequestEnabled() != null || request.getBoxInviteEnabled() != null || request.getMentionEnabled() != null;
         if (hasUnifiedCategoryToggle) {
-            settings.setPushEnabled(true);
-            settings.setInAppEnabled(true);
-            settings.setEmailEnabled(true);
+            settings.setPushEnabled(true); settings.setInAppEnabled(true); settings.setEmailEnabled(true);
         }
 
         if (request.getCommentEnabled() != null) {
             boolean enabled = request.getCommentEnabled();
-            settings.setInAppComment(enabled);
-            settings.setPushComment(enabled);
-            settings.setPushNewComment(enabled);
-            settings.setEmailComment(enabled);
+            settings.setInAppComment(enabled); settings.setPushComment(enabled); settings.setPushNewComment(enabled); settings.setEmailComment(enabled);
         }
-
         if (request.getReactionEnabled() != null) {
             boolean enabled = request.getReactionEnabled();
-            settings.setInAppReaction(enabled);
-            settings.setPushReaction(enabled);
-            settings.setEmailReaction(enabled);
+            settings.setInAppReaction(enabled); settings.setPushReaction(enabled); settings.setEmailReaction(enabled);
         }
-
         if (request.getMessageEnabled() != null) {
             boolean enabled = request.getMessageEnabled();
-            settings.setInAppMessage(enabled);
-            settings.setPushMessage(enabled);
-            settings.setEmailMessage(enabled);
+            settings.setInAppMessage(enabled); settings.setPushMessage(enabled); settings.setEmailMessage(enabled);
         }
-
         if (request.getJourneyEnabled() != null) {
             boolean enabled = request.getJourneyEnabled();
-            settings.setInAppJourney(enabled);
-            settings.setPushJourney(enabled);
-            settings.setPushJourneyInvite(enabled);
-            settings.setEmailJourney(enabled);
+            settings.setInAppJourney(enabled); settings.setPushJourney(enabled); settings.setPushJourneyInvite(enabled); settings.setEmailJourney(enabled);
         }
-
         if (request.getFriendRequestEnabled() != null) {
             boolean enabled = request.getFriendRequestEnabled();
-            settings.setInAppFriendRequest(enabled);
-            settings.setPushFriendRequest(enabled);
-            settings.setPushFriendRequestCategory(enabled);
-            settings.setEmailFriendRequest(enabled);
+            settings.setInAppFriendRequest(enabled); settings.setPushFriendRequest(enabled); settings.setPushFriendRequestCategory(enabled); settings.setEmailFriendRequest(enabled);
         }
-
         if (request.getBoxInviteEnabled() != null) {
             boolean enabled = request.getBoxInviteEnabled();
-            settings.setInAppBoxInvite(enabled);
-            settings.setPushBoxInvite(enabled);
-            settings.setEmailBoxInvite(enabled);
+            settings.setInAppBoxInvite(enabled); settings.setPushBoxInvite(enabled); settings.setEmailBoxInvite(enabled);
         }
-
         if (request.getMentionEnabled() != null) {
             boolean enabled = request.getMentionEnabled();
-            settings.setInAppMention(enabled);
-            settings.setPushMention(enabled);
-            settings.setEmailMention(enabled);
+            settings.setInAppMention(enabled); settings.setPushMention(enabled); settings.setEmailMention(enabled);
         }
 
         if (request.getEmailDailyReminder() != null) settings.setEmailDailyReminder(request.getEmailDailyReminder());
@@ -330,27 +281,7 @@ public class UserServiceImpl implements UserService {
         if (request.getInAppEnabled() != null) settings.setInAppEnabled(request.getInAppEnabled());
         if (request.getEmailEnabled() != null) settings.setEmailEnabled(request.getEmailEnabled());
 
-        if (request.getInAppComment() != null) settings.setInAppComment(request.getInAppComment());
-        if (request.getInAppReaction() != null) settings.setInAppReaction(request.getInAppReaction());
-        if (request.getInAppMessage() != null) settings.setInAppMessage(request.getInAppMessage());
-        if (request.getInAppJourney() != null) settings.setInAppJourney(request.getInAppJourney());
-        if (request.getInAppFriendRequest() != null) settings.setInAppFriendRequest(request.getInAppFriendRequest());
-        if (request.getInAppBoxInvite() != null) settings.setInAppBoxInvite(request.getInAppBoxInvite());
-        if (request.getInAppMention() != null) settings.setInAppMention(request.getInAppMention());
-
-        if (request.getPushComment() != null) settings.setPushComment(request.getPushComment());
-        if (request.getPushJourney() != null) settings.setPushJourney(request.getPushJourney());
-        if (request.getPushFriendRequestCategory() != null) settings.setPushFriendRequestCategory(request.getPushFriendRequestCategory());
-
-        if (request.getEmailComment() != null) settings.setEmailComment(request.getEmailComment());
-        if (request.getEmailReaction() != null) settings.setEmailReaction(request.getEmailReaction());
-        if (request.getEmailMessage() != null) settings.setEmailMessage(request.getEmailMessage());
-        if (request.getEmailJourney() != null) settings.setEmailJourney(request.getEmailJourney());
-        if (request.getEmailFriendRequest() != null) settings.setEmailFriendRequest(request.getEmailFriendRequest());
-        if (request.getEmailBoxInvite() != null) settings.setEmailBoxInvite(request.getEmailBoxInvite());
-        if (request.getEmailMention() != null) settings.setEmailMention(request.getEmailMention());
-
-        // BỔ SUNG SPRINT 2: Cập nhật DND
+        // DND & GHOST MODE
         if (request.getDndEnabled() != null) settings.setDndEnabled(request.getDndEnabled());
         if (request.getDndStartHour() != null) {
             validateHour(request.getDndStartHour(), "dndStartHour");
@@ -360,9 +291,11 @@ public class UserServiceImpl implements UserService {
             validateHour(request.getDndEndHour(), "dndEndHour");
             settings.setDndEndHour(request.getDndEndHour());
         }
+        if (request.getLocationVisibility() != null) {
+            settings.setLocationVisibility(request.getLocationVisibility());
+        }
 
         normalizeSimpleCategorySettings(settings);
-
         return userSettingsRepository.save(settings);
     }
 
@@ -389,40 +322,14 @@ public class UserServiceImpl implements UserService {
         boolean boxInviteEnabled = settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
         boolean mentionEnabled = settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
 
-        settings.setInAppEnabled(true);
-        settings.setPushEnabled(true);
-        settings.setEmailEnabled(true);
-
-        settings.setInAppComment(commentEnabled);
-        settings.setPushComment(commentEnabled);
-        settings.setPushNewComment(commentEnabled);
-        settings.setEmailComment(commentEnabled);
-
-        settings.setInAppReaction(reactionEnabled);
-        settings.setPushReaction(reactionEnabled);
-        settings.setEmailReaction(reactionEnabled);
-
-        settings.setInAppMessage(messageEnabled);
-        settings.setPushMessage(messageEnabled);
-        settings.setEmailMessage(messageEnabled);
-
-        settings.setInAppJourney(journeyEnabled);
-        settings.setPushJourney(journeyEnabled);
-        settings.setPushJourneyInvite(journeyEnabled);
-        settings.setEmailJourney(journeyEnabled);
-
-        settings.setInAppFriendRequest(friendEnabled);
-        settings.setPushFriendRequest(friendEnabled);
-        settings.setPushFriendRequestCategory(friendEnabled);
-        settings.setEmailFriendRequest(friendEnabled);
-
-        settings.setInAppBoxInvite(boxInviteEnabled);
-        settings.setPushBoxInvite(boxInviteEnabled);
-        settings.setEmailBoxInvite(boxInviteEnabled);
-
-        settings.setInAppMention(mentionEnabled);
-        settings.setPushMention(mentionEnabled);
-        settings.setEmailMention(mentionEnabled);
+        settings.setInAppEnabled(true); settings.setPushEnabled(true); settings.setEmailEnabled(true);
+        settings.setInAppComment(commentEnabled); settings.setPushComment(commentEnabled); settings.setPushNewComment(commentEnabled); settings.setEmailComment(commentEnabled);
+        settings.setInAppReaction(reactionEnabled); settings.setPushReaction(reactionEnabled); settings.setEmailReaction(reactionEnabled);
+        settings.setInAppMessage(messageEnabled); settings.setPushMessage(messageEnabled); settings.setEmailMessage(messageEnabled);
+        settings.setInAppJourney(journeyEnabled); settings.setPushJourney(journeyEnabled); settings.setPushJourneyInvite(journeyEnabled); settings.setEmailJourney(journeyEnabled);
+        settings.setInAppFriendRequest(friendEnabled); settings.setPushFriendRequest(friendEnabled); settings.setPushFriendRequestCategory(friendEnabled); settings.setEmailFriendRequest(friendEnabled);
+        settings.setInAppBoxInvite(boxInviteEnabled); settings.setPushBoxInvite(boxInviteEnabled); settings.setEmailBoxInvite(boxInviteEnabled);
+        settings.setInAppMention(mentionEnabled); settings.setPushMention(mentionEnabled); settings.setEmailMention(mentionEnabled);
     }
 
     @Override
@@ -450,7 +357,6 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void unlinkSocialAccount(String userId, String provider) {
         User user = getUserById(userId);
-        
         boolean hasPassword = "LOCAL".equals(user.getAuthProvider());
         long socialCount = socialAccountRepository.countByUserId(userId);
 
@@ -483,22 +389,29 @@ public class UserServiceImpl implements UserService {
         
         user.setAccountType(newType);
         
-        // Tính toán múi giờ của user để căn ngày hết hạn cho chuẩn
         String tz = user.getTimezone() != null ? user.getTimezone() : "UTC";
         LocalDateTime now = LocalDateTime.now(ZoneId.of(tz));
         LocalDateTime currentExpiry = user.getSubscriptionExpiryDate();
         
-        // Nếu chưa từng có gói, hoặc gói đã hết hạn -> Bắt đầu tính từ ngày hôm nay
         if (currentExpiry == null || currentExpiry.isBefore(now)) {
             user.setSubscriptionExpiryDate(now.plusDays(durationDays));
         } else {
-            // Nếu vẫn đang còn hạn gói cũ (ví dụ nạp dồn) -> Cộng dồn vào ngày hết hạn hiện tại
             user.setSubscriptionExpiryDate(currentExpiry.plusDays(durationDays));
         }
         
         userRepository.save(user);
         log.info("Đã nâng cấp User ID: {} lên gói {} thêm {} ngày. Ngày hết hạn mới: {}", 
                  userId, newType.name(), durationDays, user.getSubscriptionExpiryDate());
+    }
+
+    // --- [NEW] HOÀN THÀNH ONBOARDING ---
+    @Override
+    @Transactional
+    public void completeOnboarding(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setHasCompletedOnboarding(true);
+        userRepository.save(user);
     }
 
     private UserProfileResponse buildUserProfile(User targetUser, User viewer) {
@@ -510,6 +423,9 @@ public class UserServiceImpl implements UserService {
         long totalCheckins = checkinRepository.countByUserId(targetUser.getId());
         response.setTotalCheckins(totalCheckins);
         response.setCurrentStreak(targetUser.getCurrentStreak() != null ? targetUser.getCurrentStreak() : 0);
+
+        // Ánh xạ trạng thái onboarding cho DTO
+        response.setHasCompletedOnboarding(targetUser.isHasCompletedOnboarding());
 
         if (viewer != null && viewer.getId().equals(targetUser.getId())) {
             response.setMe(true);

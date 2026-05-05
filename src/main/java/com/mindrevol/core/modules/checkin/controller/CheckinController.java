@@ -161,8 +161,14 @@ public class CheckinController {
         return ResponseEntity.ok(ApiResponse.success(checkinService.getMyMapMarkers(currentUser)));
     }
 
+    @GetMapping("/map/user/{userId}")
+    public ResponseEntity<ApiResponse<List<MapMarkerResponse>>> getUserMapMarkers(@PathVariable String userId) {
+        User currentUser = (User) SecurityUtils.getCurrentUser();
+        return ResponseEntity.ok(ApiResponse.success(checkinService.getUserMapMarkers(userId, currentUser)));
+    }
+
     // =========================================================================
-    // [THÊM MỚI] API lấy toàn bộ ảnh của hành trình để làm Recap
+    // RECAP
     // =========================================================================
     @GetMapping("/journey/{journeyId}/photos")
     public ResponseEntity<ApiResponse<List<CheckinResponse>>> getJourneyPhotos(@PathVariable String journeyId) {

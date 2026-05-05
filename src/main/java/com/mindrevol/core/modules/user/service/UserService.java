@@ -53,4 +53,6 @@ public interface UserService {
 	List<CalendarRecapResponse> getUserCalendarRecap(String userId, int year, int month);
 
 	void upgradeUserTier(String userId, AccountType newType, int durationDays);
+
+	void completeOnboarding(String userId);
 }

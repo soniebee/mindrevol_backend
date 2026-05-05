@@ -37,6 +37,7 @@ import com.mindrevol.core.modules.storage.service.FileStorageService;
 import com.mindrevol.core.modules.user.entity.User;
 import com.mindrevol.core.modules.user.repository.UserBlockRepository;
 import com.mindrevol.core.modules.user.repository.UserRepository;
+import com.mindrevol.core.modules.user.repository.UserSettingsRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -79,6 +80,9 @@ public class CheckinServiceImpl implements CheckinService {
     private final ReactionService reactionService; 
     private final ContentModerationService moderationService;
     private final ImageMetadataService metadataService;
+
+    // --- BỔ SUNG GHOST MODE ---
+    private final UserSettingsRepository userSettingsRepository;
     
     private Set<String> getExcludedUserIds(String userId) {
         Set<String> blockedIds = userBlockRepository.findAllBlockedUserIdsInteraction(userId);
@@ -522,6 +526,60 @@ public class CheckinServiceImpl implements CheckinService {
         participantRepository.save(participant);
     }
 
+    // =========================================================================
+    // MAP MARKERS & GHOST MODE (Quyền riêng tư vị trí)
+    // =========================================================================
+
+    // Hàm tiện ích: Trích xuất và áp dụng Ghost Mode cho các marker
+    private List<MapMarkerResponse> applyGhostMode(List<Checkin> checkins, User currentUser) {
+        if (checkins.isEmpty()) return new ArrayList<>();
+
+        Set<String> userIds = checkins.stream().map(c -> c.getUser().getId()).collect(Collectors.toSet());
+        
+        // [FIX LỖI NULL]: Dùng Custom Query trả về mảng Object[] thay vì Load toàn bộ Entity để tránh sập Hibernate
+        List<Object[]> visibilityData = userSettingsRepository.findLocationVisibilityByUserIdIn(userIds);
+        
+        java.util.Map<String, String> visibilityMap = visibilityData.stream()
+                .collect(Collectors.toMap(
+                    row -> (String) row[0], 
+                    row -> row[1] != null ? (String) row[1] : "PRECISE"
+                ));
+
+        List<MapMarkerResponse> responses = new ArrayList<>();
+        
+        for (Checkin c : checkins) {
+            String targetUserId = c.getUser().getId();
+            String ghostMode = visibilityMap.getOrDefault(targetUserId, "PRECISE");
+
+            if (currentUser.getId().equals(targetUserId)) {
+                ghostMode = "PRECISE";
+            }
+
+            if ("HIDDEN".equals(ghostMode)) {
+                continue;
+            }
+
+            double lat = c.getLatitude();
+            double lng = c.getLongitude();
+
+            if ("BLURRED".equals(ghostMode)) {
+                lat += (Math.random() - 0.5) * 0.018; 
+                lng += (Math.random() - 0.5) * 0.018;
+            }
+
+            responses.add(MapMarkerResponse.builder()
+                    .checkinId(c.getId())
+                    .latitude(lat)
+                    .longitude(lng)
+                    .thumbnailUrl(c.getThumbnailUrl())
+                    .userAvatar(c.getUser().getAvatarUrl())
+                    .fullname(c.getUser().getFullname())
+                    .createdAt(c.getCreatedAt())
+                    .build());
+        }
+        return responses;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<MapMarkerResponse> getMapMarkersForJourney(String journeyId, User currentUser) {
@@ -529,41 +587,21 @@ public class CheckinServiceImpl implements CheckinService {
         if (!hasAccessToJourney(journey, currentUser.getId())) {
             throw new BadRequestException("Bạn không có quyền xem dữ liệu của hành trình này");
         }
-
         List<Checkin> checkins = checkinRepository.findMapMarkersByJourney(journeyId);
-        
-        return checkins.stream().map(c -> MapMarkerResponse.builder()
-                .checkinId(c.getId())
-                .latitude(c.getLatitude())
-                .longitude(c.getLongitude())
-                .thumbnailUrl(c.getThumbnailUrl())
-                .userAvatar(c.getUser().getAvatarUrl())
-                .fullname(c.getUser().getFullname())
-                .build()
-        ).collect(Collectors.toList());
+        return applyGhostMode(checkins, currentUser);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<MapMarkerResponse> getMapMarkersForBox(String boxId, User currentUser) {
         List<Checkin> checkins = checkinRepository.findMapMarkersByBox(boxId);
-        
-        return checkins.stream().map(c -> MapMarkerResponse.builder()
-                .checkinId(c.getId())
-                .latitude(c.getLatitude())
-                .longitude(c.getLongitude())
-                .thumbnailUrl(c.getThumbnailUrl())
-                .userAvatar(c.getUser().getAvatarUrl())
-                .fullname(c.getUser().getFullname())
-                .build()
-        ).collect(Collectors.toList());
+        return applyGhostMode(checkins, currentUser);
     }
     
     @Override
     @Transactional(readOnly = true)
     public List<MapMarkerResponse> getMyMapMarkers(User currentUser) {
         List<Checkin> checkins = checkinRepository.findMapMarkersByUser(currentUser.getId());
-        
         return checkins.stream().map(c -> MapMarkerResponse.builder()
                 .checkinId(c.getId())
                 .latitude(c.getLatitude())
@@ -571,12 +609,20 @@ public class CheckinServiceImpl implements CheckinService {
                 .thumbnailUrl(c.getThumbnailUrl())
                 .userAvatar(c.getUser().getAvatarUrl())
                 .fullname(c.getUser().getFullname())
+                .createdAt(c.getCreatedAt())
                 .build()
         ).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<MapMarkerResponse> getUserMapMarkers(String targetUserId, User currentUser) {
+        List<Checkin> checkins = checkinRepository.findMapMarkersByUser(targetUserId);
+        return applyGhostMode(checkins, currentUser);
+    }
+
     // =========================================================================
-    // [THÊM MỚI] Lấy danh sách ảnh của hành trình để làm Recap
+    // RECAP
     // =========================================================================
     @Override
     @Transactional(readOnly = true)
@@ -591,10 +637,7 @@ public class CheckinServiceImpl implements CheckinService {
     @Transactional(readOnly = true)
     public List<CheckinResponse> getMultipleJourneysPhotosForRecap(List<String> journeyIds) {
         if (journeyIds == null || journeyIds.isEmpty()) return new ArrayList<>();
-        
-        // Gọi hàm query IN :journeyIds mà ta đã viết ở CheckinRepository
         List<Checkin> checkins = checkinRepository.findMediaByMultipleJourneyIds(journeyIds);
-        
         return checkins.stream()
                 .map(checkinMapper::toResponse)
                 .collect(Collectors.toList());

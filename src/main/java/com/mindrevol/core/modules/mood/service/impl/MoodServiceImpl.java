@@ -42,13 +42,11 @@ public class MoodServiceImpl implements MoodService {
     @Override
     @Transactional
     public MoodResponse createOrUpdateMood(String boxId, String userId, MoodRequest request) {
-        // Kiểm tra quyền thành viên
         if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, userId)) {
             throw new BadRequestException("Bạn không phải là thành viên của Không gian này!");
         }
 
         LocalDateTime now = LocalDateTime.now();
-        // Lấy trạng thái CÒN HẠN của user trong Box
         Optional<Mood> existingMood = moodRepository.findByBoxIdAndUserIdAndExpiresAtAfter(boxId, userId, now);
 
         Mood mood;
@@ -56,9 +54,15 @@ public class MoodServiceImpl implements MoodService {
             mood = existingMood.get();
             mood.setIcon(request.getIcon());
             mood.setMessage(request.getMessage());
-            mood.setExpiresAt(now.plusHours(24)); // Làm mới lại thời gian 24h
+            mood.setSpotifyTrackId(request.getSpotifyTrackId());
+            
+            // Cập nhật Tags
+            mood.setActivity(request.getActivity());
+            mood.setLocation(request.getLocation());
+            mood.setWeather(request.getWeather());
 
-            // Clear tim cũ khi cập nhật cảm xúc mới
+            mood.setExpiresAt(now.plusHours(24)); 
+
             moodReactionRepository.deleteAllByMoodId(mood.getId());
             if (mood.getReactions() != null) {
                 mood.getReactions().clear();
@@ -69,13 +73,16 @@ public class MoodServiceImpl implements MoodService {
                     .user(userRepository.getReferenceById(userId))
                     .icon(request.getIcon())
                     .message(request.getMessage())
+                    .spotifyTrackId(request.getSpotifyTrackId())
+                    .activity(request.getActivity())
+                    .location(request.getLocation())
+                    .weather(request.getWeather())
                     .expiresAt(now.plusHours(24))
                     .build();
         }
 
         mood = moodRepository.save(mood);
 
-        // Bắn sự kiện (Push Notification / Socket)
         eventPublisher.publishEvent(MoodCreatedEvent.builder()
                 .moodId(mood.getId())
                 .boxId(mood.getBox().getId())
@@ -93,7 +100,6 @@ public class MoodServiceImpl implements MoodService {
             throw new BadRequestException("Bạn không có quyền xem trạng thái của Không gian này");
         }
 
-        // Lấy danh sách mood còn hạn
         List<Mood> activeMoods = moodRepository.findByBoxIdAndExpiresAtAfterOrderByUpdatedAtDesc(boxId, LocalDateTime.now());
 
         return activeMoods.stream()
@@ -115,7 +121,6 @@ public class MoodServiceImpl implements MoodService {
             throw new BadRequestException("Trạng thái này đã hết hạn");
         }
 
-        // Cập nhật tim nếu đã thả, thêm mới nếu chưa
         Optional<MoodReaction> existingReaction = moodReactionRepository.findByMoodIdAndUserId(moodId, userId);
 
         if (existingReaction.isPresent()) {
@@ -131,7 +136,6 @@ public class MoodServiceImpl implements MoodService {
             moodReactionRepository.save(newReaction);
         }
 
-        // Chỉ bắn thông báo nếu người thả tim không phải là chủ nhân của mood
         if (!userId.equals(mood.getUser().getId())) {
             eventPublisher.publishEvent(MoodReactedEvent.builder()
                     .moodId(mood.getId())
@@ -164,7 +168,6 @@ public class MoodServiceImpl implements MoodService {
     @Override
     @Transactional
     public void askFriendMood(String boxId, String askerId, String targetUserId) {
-        // Kiểm tra 2 người có trong Box không
         if (!boxMemberRepository.existsByBoxIdAndUserId(boxId, askerId) || 
             !boxMemberRepository.existsByBoxIdAndUserId(boxId, targetUserId)) {
             throw new BadRequestException("Cả hai phải là thành viên của Không gian này!");
@@ -174,7 +177,6 @@ public class MoodServiceImpl implements MoodService {
             throw new BadRequestException("Bạn không thể tự hỏi thăm chính mình!");
         }
 
-        // Bắn sự kiện để xử lý thông báo "A đang hỏi thăm cảm xúc của bạn"
         eventPublisher.publishEvent(MoodAskedEvent.builder()
                 .boxId(boxId)
                 .askerId(askerId)

@@ -177,6 +177,15 @@ public class UserController {
         UserSettings settings = userService.resetNotificationSettings(userId);
         return ResponseEntity.ok(ApiResponse.success(toNotificationSettingsResponse(settings)));
     }
+    
+    @PatchMapping("/me/onboarding-complete")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Đánh dấu user đã hoàn thành hướng dẫn tân thủ")
+    public ResponseEntity<ApiResponse<Void>> completeOnboarding() {
+        String currentUserId = SecurityUtils.getCurrentUserId();
+        userService.completeOnboarding(currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 
     private NotificationSettingsResponse toNotificationSettingsResponse(UserSettings settings) {
         return NotificationSettingsResponse.builder()
