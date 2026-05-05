@@ -108,7 +108,7 @@ public class User extends BaseEntity implements UserDetails {
     private LocalDateTime subscriptionExpiryDate;
 
     // --- [NEW] CỜ ĐÁNH DẤU HOÀN THÀNH ONBOARDING ---
-    @Column(name = "has_completed_onboarding", nullable = false)
+    @Column(name = "has_completed_onboarding", nullable = false, columnDefinition = "boolean default false")
     @Builder.Default
     private boolean hasCompletedOnboarding = false;
 

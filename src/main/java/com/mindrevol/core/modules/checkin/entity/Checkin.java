@@ -1,12 +1,5 @@
 package com.mindrevol.core.modules.checkin.entity;
 
-import com.mindrevol.core.modules.checkin.entity.ActivityType;
-import com.mindrevol.core.modules.checkin.entity.Checkin;
-import com.mindrevol.core.modules.checkin.entity.CheckinComment;
-import com.mindrevol.core.modules.checkin.entity.CheckinReaction;
-import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
-import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
-import com.mindrevol.core.modules.checkin.entity.MediaType;
 import com.mindrevol.core.common.entity.BaseEntity;
 import com.mindrevol.core.modules.journey.entity.Journey;
 import com.mindrevol.core.modules.user.entity.User;
@@ -18,7 +11,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Entity
 @Table(name = "checkins", 
     uniqueConstraints = {
@@ -27,8 +19,7 @@ import java.util.List;
     indexes = {
         @Index(name = "idx_checkin_journey", columnList = "journey_id"),
         @Index(name = "idx_checkin_user", columnList = "user_id")
-    }
-)
+    })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -40,7 +31,6 @@ public class Checkin extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // [ĐÃ SỬA] Cho phép journey_id được null để lưu trữ cá nhân
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "journey_id", nullable = true)
     private Journey journey;
@@ -71,7 +61,10 @@ public class Checkin extends BaseEntity {
     @Column(name = "location_name")
     private String locationName;
 
-    // [THÊM MỚI] Lưu tọa độ để vẽ lên Bản đồ
+    // --- [MỚI] THẺ HIỂN THỊ TRÊN UI ---
+    @Column(name = "display_tag", length = 20)
+    private String displayTag;
+
     @Column(name = "latitude")
     private Double latitude;
 

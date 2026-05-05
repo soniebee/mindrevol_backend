@@ -40,6 +40,10 @@ public class CheckinResponse implements FeedItemResponse {
     private ActivityType activityType;
     private String activityName;
     private String locationName;
+    
+    // --- [MỚI] THẺ HIỂN THỊ ---
+    private String displayTag;
+
     private List<String> tags;
 
     // --- STATUS ---
@@ -51,11 +55,10 @@ public class CheckinResponse implements FeedItemResponse {
     // --- INTERACTION ---
     private int reactionCount;
     private int commentCount;
-    private List<CheckinReactionDetailResponse> latestReactions; 
-    
-    // [THÊM MỚI Ở ĐÂY] Cờ nhận biết bài viết này đã được user hiện tại lưu hay chưa
+    private List<CheckinReactionDetailResponse> latestReactions;
+
     private boolean isSaved;
-    
+
     @Override
     public FeedItemType getType() {
         return FeedItemType.POST;

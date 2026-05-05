@@ -43,6 +43,7 @@ public class CallSignalingService {
 
     private static final String CALL_KEY_PREFIX = "call_session:";
     private static final String USER_IN_CALL_PREFIX = "user_in_call:"; 
+    private static final String BOX_CALL_PREFIX = "box_call_room:";
 
     public CallSession initiateCall(String callerId, String receiverId, String type, String conversationId) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(USER_IN_CALL_PREFIX + receiverId))) {
@@ -115,25 +116,92 @@ public class CallSignalingService {
         }
     }
 
+ // 🔥 HÀM MỚI: BẮT ĐẦU HOẶC THAM GIA CUỘC GỌI NHÓM TRONG BOX
+    public CallSession initiateBoxCall(String callerId, String boxId, String conversationId, String type) {
+        String key = BOX_CALL_PREFIX + boxId;
+        
+        // 1. Kiểm tra xem Box này đang có cuộc gọi nào diễn ra không
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
+            // Nếu có, trả về phòng hiện tại để người dùng Join vào
+            return (CallSession) redisTemplate.opsForValue().get(key);
+        }
+
+        // 2. Nếu chưa có, tạo phòng mới
+        User caller = userRepository.findById(callerId).orElseThrow();
+        String roomId = "room_box_" + boxId + "_" + UUID.randomUUID().toString().substring(0, 5);
+
+        CallSession session = CallSession.builder()
+                .roomId(roomId)
+                .conversationId(conversationId)
+                .callerId(callerId)
+                .receiverId(boxId) // Mượn trường này lưu boxId
+                .callerName(caller.getFullname())
+                .callerAvatar(caller.getAvatarUrl())
+                .callType(type)
+                .status("IN_PROGRESS") // Nhóm thì vào thẳng luôn, không có RINGING
+                .timestamp(System.currentTimeMillis())
+                .startTime(System.currentTimeMillis())
+                .isGroup(true)
+                .build();
+
+        // Lưu phòng lên Redis (Sống tối đa 4 tiếng nếu không ai dọn dẹp)
+        redisTemplate.opsForValue().set(key, session, 4, TimeUnit.HOURS);
+
+        // Lưu tin nhắn "Cuộc gọi nhóm đã bắt đầu" vào Chat
+        saveCallLog(session, "GROUP_STARTED", 0);
+
+        // Bắn WebSocket báo cho mọi người trong Box biết để hiện nút "Tham gia"
+        NotificationResponse payload = NotificationResponse.builder()
+                .type("BOX_CALL_STARTED")
+                .referenceId(roomId)
+                .messageArgs(boxId + "|" + type + "|" + caller.getFullname())
+                .build();
+        
+        // Gửi chung vào topic của conversation đó
+        messagingTemplate.convertAndSend("/topic/conversations/" + conversationId, payload);
+
+        return session;
+    }
+
+    // 🔥 HÀM MỚI: KẾT THÚC HOẶC RỜI CUỘC GỌI NHÓM
+    public void leaveBoxCall(String boxId, String roomId) {
+        // Trong kiến trúc SFU của Zego, việc đếm số người trong phòng nên được làm ở Frontend.
+        // Tuy nhiên để đơn giản, nếu người khởi tạo cúp máy hoặc phòng trống, ta xóa key Redis.
+        // Tạm thời cung cấp API dọn dẹp key này khi cuộc gọi nhóm thực sự kết thúc.
+        String key = BOX_CALL_PREFIX + boxId;
+        CallSession session = (CallSession) redisTemplate.opsForValue().get(key);
+        
+        if (session != null && session.getRoomId().equals(roomId)) {
+            redisTemplate.delete(key);
+            
+            // Bắn tín hiệu phòng đã đóng
+            NotificationResponse payload = NotificationResponse.builder()
+                    .type("BOX_CALL_ENDED")
+                    .referenceId(roomId)
+                    .messageArgs(boxId)
+                    .build();
+            messagingTemplate.convertAndSend("/topic/conversations/" + session.getConversationId(), payload);
+        }
+    }
+
+    // Sửa lại hàm saveCallLog một chút để hỗ trợ Group
     private void saveCallLog(CallSession session, String status, long durationSeconds) {
         try {
             String content = String.format("%s|%s|%d", session.getCallType(), status, durationSeconds);
-            
             Conversation conv = conversationRepository.findById(session.getConversationId()).orElseThrow();
             User sender = userRepository.findById(session.getCallerId()).orElseThrow();
 
             Message callLogMessage = Message.builder()
-                    .conversation(conv)
-                    .sender(sender)
-                    .type(MessageType.CALL_LOG)
-                    .content(content)
+                    .conversation(conv).sender(sender)
+                    .type(MessageType.CALL_LOG).content(content)
                     .deliveryStatus(MessageDeliveryStatus.SENT)
                     .clientSideId(String.valueOf(System.currentTimeMillis()))
                     .build();
             
             messageRepository.save(callLogMessage);
             
-            conv.setLastMessageContent(typeToVietnamese(session.getCallType()) + " " + statusToVietnamese(status));
+            String logText = status.equals("GROUP_STARTED") ? "[Bắt đầu cuộc gọi nhóm]" : typeToVietnamese(session.getCallType()) + " " + statusToVietnamese(status);
+            conv.setLastMessageContent(logText);
             conv.setLastMessageAt(LocalDateTime.now());
             conv.setLastSenderId(sender.getId());
             conversationRepository.save(conv);

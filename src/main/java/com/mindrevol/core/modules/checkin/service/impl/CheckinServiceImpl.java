@@ -218,14 +218,14 @@ public class CheckinServiceImpl implements CheckinService {
     }
     
     @Transactional
-    protected CheckinResponse saveCheckinTransaction(User currentUser, Journey journey, 
-                                                   JourneyParticipant participant, 
-                                                   CheckinRequest request, 
-                                                   String imageUrl,
-                                                   String videoUrl,
-                                                   String imageFileId,
-                                                   MediaType mediaType,
-                                                   LocalDate todayLocal) {
+    protected CheckinResponse saveCheckinTransaction(User currentUser, Journey journey,
+                                                    JourneyParticipant participant,
+                                                    CheckinRequest request,
+                                                    String imageUrl,
+                                                    String videoUrl,
+                                                    String imageFileId,
+                                                    MediaType mediaType,
+                                                    LocalDate todayLocal) {
         
         CheckinStatus finalStatus = CheckinStatus.NORMAL;
         if (request.getStatusRequest() != null && request.getStatusRequest().toString().equalsIgnoreCase("REST")) {
@@ -237,8 +237,7 @@ public class CheckinServiceImpl implements CheckinService {
             finalActivityName = null;
         }
 
-        String finalEmotion = Emotion.NORMAL.name(); 
-        
+        String finalEmotion = Emotion.NORMAL.name();          
         if (request.getEmotion() != null) {
             finalEmotion = request.getEmotion().toString();
         }
@@ -256,11 +255,15 @@ public class CheckinServiceImpl implements CheckinService {
                 .activityType(request.getActivityType() != null ? request.getActivityType() : ActivityType.DEFAULT)
                 .activityName(finalActivityName)
                 .locationName(request.getLocationName())
+                
+                // --- [MỚI] LƯU THẺ HIỂN THỊ ---
+                .displayTag(request.getDisplayTag())
+
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .tags(request.getTags() != null ? request.getTags() : new ArrayList<>())
                 .status(finalStatus)
-                .visibility(request.getVisibility() != null ? request.getVisibility() : CheckinVisibility.PUBLIC) 
+                .visibility(request.getVisibility() != null ? request.getVisibility() : CheckinVisibility.PUBLIC)
                 .createdAt(LocalDateTime.now())
                 .checkinDate(todayLocal)
                 .build();
