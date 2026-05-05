@@ -18,20 +18,18 @@ public class CheckinRequest {
 
     private String caption;
     
-    // Context Data
-    private String emotion;           
-    private ActivityType activityType; 
-    private String activityName;      
-    private String locationName;      
+    private String emotion;                 
+    private ActivityType activityType;      
+    private String activityName;            
+    private String locationName;                 
 
-    // --- [MỚI] THẺ HIỂN THỊ ---
+    // --- [MỚI] THẺ HIỂN THỊ VÀ SPOTIFY ---
     private String displayTag;
-          
-    // Location cho Map
+    private String spotifyTrackId;
+
     private Double latitude;
     private Double longitude;
-
-    private List<String> tags;             
+    private List<String> tags;                   
     private CheckinStatus statusRequest = CheckinStatus.NORMAL; 
     private CheckinVisibility visibility = CheckinVisibility.PUBLIC;
 }

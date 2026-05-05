@@ -14,8 +14,7 @@ public class CallCleanupJob {
     private final CallSignalingService callSignalingService;
 
     // Chạy ngầm định kỳ mỗi 5 phút một lần
- // Chạy ngầm định kỳ mỗi 5 giây (chỉ dùng khi đang test)
-    @Scheduled(fixedRate = 5000)
+    @Scheduled(fixedRate = 300000)
     public void cleanupGhostCalls() {
         try {
             callSignalingService.cleanupStaleCalls();

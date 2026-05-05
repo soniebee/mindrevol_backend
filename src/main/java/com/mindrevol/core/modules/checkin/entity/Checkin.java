@@ -65,6 +65,10 @@ public class Checkin extends BaseEntity {
     @Column(name = "display_tag", length = 20)
     private String displayTag;
 
+    // --- [MỚI] THẺ NHẠC SPOTIFY ---
+    @Column(name = "spotify_track_id", length = 100)
+    private String spotifyTrackId;
+
     @Column(name = "latitude")
     private Double latitude;
 

@@ -75,13 +75,10 @@ public class CheckinServiceImpl implements CheckinService {
     
     private final CheckinCommentRepository commentRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final UserBlockRepository userBlockRepository; 
-    
+    private final UserBlockRepository userBlockRepository;      
     private final ReactionService reactionService; 
     private final ContentModerationService moderationService;
     private final ImageMetadataService metadataService;
-
-    // --- BỔ SUNG GHOST MODE ---
     private final UserSettingsRepository userSettingsRepository;
     
     private Set<String> getExcludedUserIds(String userId) {
@@ -124,7 +121,6 @@ public class CheckinServiceImpl implements CheckinService {
     public CheckinResponse createCheckin(CheckinRequest request, User currentUser) {
         Journey journey = null;
         JourneyParticipant participant = null;
-
         String tz = currentUser.getTimezone() != null ? currentUser.getTimezone() : "UTC";
         ZoneId userZone = ZoneId.of(tz);
         LocalDate todayLocal = LocalDate.now(userZone);
@@ -138,11 +134,11 @@ public class CheckinServiceImpl implements CheckinService {
             participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId()).orElse(null);
 
             if (!isBoxMember && participant == null) {
-                throw new BadRequestException("Bạn không phải thành viên (hoặc Khách) của hành trình này.");
+                throw new BadRequestException("Bạn không phải thành viên (hoặc Khách) của Hành trình này.");
             }
 
-            if (journey.getEndDate() != null && todayLocal.isAfter(journey.getEndDate().plusDays(1))) {
-                 throw new BadRequestException("Hành trình này đã kết thúc (Hạn chót: " + journey.getEndDate() + ").");
+            if (journey.getEndDate() != null && todayLocal.isAfter(journey.getEndDate().plusDays(1))) { 
+                throw new BadRequestException("Hành trình này đã kết thúc (Hạn chót: " + journey.getEndDate() + ").");
             }
         }
 
@@ -150,7 +146,6 @@ public class CheckinServiceImpl implements CheckinService {
         String videoUrl = null;
         String imageFileId = null;
         MediaType mediaType = MediaType.IMAGE;
-
         Double exifLat = null;
         Double exifLng = null;
 
@@ -177,7 +172,6 @@ public class CheckinServiceImpl implements CheckinService {
                 if (file.getSize() > AppConstants.MAX_VIDEO_SIZE_BYTES) {
                     throw new BadRequestException("Video quá lớn. Vui lòng tải video dưới 10MB (Khoảng 3s).");
                 }
-
                 mediaType = MediaType.VIDEO;
                 
                 try {
@@ -196,16 +190,17 @@ public class CheckinServiceImpl implements CheckinService {
                     FileStorageService.FileUploadResult uploadResult = fileStorageService.uploadFile(file, AppConstants.STORAGE_CHECKIN_IMAGES + folderSuffix);
                     imageUrl = uploadResult.getUrl() + "?tr=w-1080,q-80"; 
                     imageFileId = uploadResult.getFileId();
+
                     moderationService.validateImage(uploadResult.getUrl()); 
                 } catch (BadRequestException e) {
                     if (imageFileId != null) fileStorageService.deleteFile(imageFileId);
                     throw e;
                 } catch (Exception e) {
-                    throw new BadRequestException("Lỗi xử lý hình ảnh: " + e.getMessage());
+                    throw new BadRequestException("Lỗi xử lý ảnh: " + e.getMessage());
                 }
             }
         } else {
-            throw new BadRequestException("Vui lòng tải lên hình ảnh hoặc video.");
+            throw new BadRequestException("Vui lòng tải lên ảnh hoặc video.");
         }
 
         if (request.getLatitude() == null && exifLat != null) {
@@ -214,7 +209,7 @@ public class CheckinServiceImpl implements CheckinService {
         }
 
         return saveCheckinTransaction(currentUser, journey, participant, request, 
-                                    imageUrl, videoUrl, imageFileId, mediaType, todayLocal);
+                                     imageUrl, videoUrl, imageFileId, mediaType, todayLocal);
     }
     
     @Transactional
@@ -222,10 +217,10 @@ public class CheckinServiceImpl implements CheckinService {
                                                     JourneyParticipant participant,
                                                     CheckinRequest request,
                                                     String imageUrl,
-                                                    String videoUrl,
-                                                    String imageFileId,
-                                                    MediaType mediaType,
-                                                    LocalDate todayLocal) {
+                                                   String videoUrl,
+                                                   String imageFileId,
+                                                   MediaType mediaType,
+                                                   LocalDate todayLocal) {
         
         CheckinStatus finalStatus = CheckinStatus.NORMAL;
         if (request.getStatusRequest() != null && request.getStatusRequest().toString().equalsIgnoreCase("REST")) {
@@ -256,8 +251,9 @@ public class CheckinServiceImpl implements CheckinService {
                 .activityName(finalActivityName)
                 .locationName(request.getLocationName())
                 
-                // --- [MỚI] LƯU THẺ HIỂN THỊ ---
+                // --- [MỚI] LƯU THẺ HIỂN THỊ VÀ SPOTIFY ---
                 .displayTag(request.getDisplayTag())
+                .spotifyTrackId(request.getSpotifyTrackId())
 
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
@@ -342,8 +338,8 @@ public class CheckinServiceImpl implements CheckinService {
     public List<CheckinResponse> getUnifiedFeed(User currentUser, LocalDateTime cursor, int limit) {
         if (cursor == null) cursor = LocalDateTime.now();
         Pageable pageable = PageRequest.of(0, limit);
-        Set<String> excludedUserIds = getExcludedUserIds(currentUser.getId());
 
+        Set<String> excludedUserIds = getExcludedUserIds(currentUser.getId());
         LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
 
         return checkinRepository.findUnifiedFeedRecent(
@@ -368,6 +364,7 @@ public class CheckinServiceImpl implements CheckinService {
         }
         if (cursor == null) cursor = LocalDateTime.now();
         Pageable pageable = PageRequest.of(0, limit);
+
         Set<String> excludedUserIds = getExcludedUserIds(currentUser.getId());
 
         return checkinRepository.findJourneyFeedByCursor(journeyId, cursor, excludedUserIds, pageable)
@@ -394,7 +391,9 @@ public class CheckinServiceImpl implements CheckinService {
                 .build();
         
         comment = commentRepository.save(comment);
+
         eventPublisher.publishEvent(new CommentPostedEvent(checkin, currentUser, content));
+
         return checkinMapper.toCommentResponse(comment);
     }
 
@@ -434,7 +433,7 @@ public class CheckinServiceImpl implements CheckinService {
                 participant = participantRepository.findByJourneyIdAndUserId(journey.getId(), currentUser.getId()).orElse(null);
 
                 if (!isBoxMember && participant == null) {
-                    throw new BadRequestException("Bạn không phải thành viên của hành trình này");
+                    throw new BadRequestException("Bạn không phải thành viên hành trình này");
                 }
 
                 checkin.setJourney(journey);
@@ -530,16 +529,14 @@ public class CheckinServiceImpl implements CheckinService {
     }
 
     // =========================================================================
-    // MAP MARKERS & GHOST MODE (Quyền riêng tư vị trí)
+    // MAP MARKERS & GHOST MODE (Quyền riêng tư)
     // =========================================================================
 
-    // Hàm tiện ích: Trích xuất và áp dụng Ghost Mode cho các marker
     private List<MapMarkerResponse> applyGhostMode(List<Checkin> checkins, User currentUser) {
         if (checkins.isEmpty()) return new ArrayList<>();
 
         Set<String> userIds = checkins.stream().map(c -> c.getUser().getId()).collect(Collectors.toSet());
         
-        // [FIX LỖI NULL]: Dùng Custom Query trả về mảng Object[] thay vì Load toàn bộ Entity để tránh sập Hibernate
         List<Object[]> visibilityData = userSettingsRepository.findLocationVisibilityByUserIdIn(userIds);
         
         java.util.Map<String, String> visibilityMap = visibilityData.stream()
@@ -580,6 +577,7 @@ public class CheckinServiceImpl implements CheckinService {
                     .createdAt(c.getCreatedAt())
                     .build());
         }
+
         return responses;
     }
 
@@ -588,8 +586,9 @@ public class CheckinServiceImpl implements CheckinService {
     public List<MapMarkerResponse> getMapMarkersForJourney(String journeyId, User currentUser) {
         Journey journey = journeyRepository.findById(journeyId).orElseThrow(() -> new ResourceNotFoundException("Not found"));
         if (!hasAccessToJourney(journey, currentUser.getId())) {
-            throw new BadRequestException("Bạn không có quyền xem dữ liệu của hành trình này");
+            throw new BadRequestException("Bạn không có quyền xem dữ liệu hành trình này");
         }
+
         List<Checkin> checkins = checkinRepository.findMapMarkersByJourney(journeyId);
         return applyGhostMode(checkins, currentUser);
     }
@@ -627,6 +626,7 @@ public class CheckinServiceImpl implements CheckinService {
     // =========================================================================
     // RECAP
     // =========================================================================
+
     @Override
     @Transactional(readOnly = true)
     public List<CheckinResponse> getJourneyPhotosForRecap(String journeyId) {

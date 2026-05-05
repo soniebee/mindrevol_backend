@@ -30,9 +30,9 @@ public class CheckinResponse implements FeedItemResponse {
     private String journeyName;
 
     // --- MEDIA ---
-    private String imageUrl;      
-    private String videoUrl;      
-    private MediaType mediaType;  
+    private String imageUrl;           
+    private String videoUrl;           
+    private MediaType mediaType;       
 
     // --- CONTENT ---
     private String caption;
@@ -41,8 +41,9 @@ public class CheckinResponse implements FeedItemResponse {
     private String activityName;
     private String locationName;
     
-    // --- [MỚI] THẺ HIỂN THỊ ---
+    // --- [MỚI] THẺ HIỂN THỊ VÀ SPOTIFY ---
     private String displayTag;
+    private String spotifyTrackId;
 
     private List<String> tags;
 
@@ -55,10 +56,10 @@ public class CheckinResponse implements FeedItemResponse {
     // --- INTERACTION ---
     private int reactionCount;
     private int commentCount;
-    private List<CheckinReactionDetailResponse> latestReactions;
+    private List<CheckinReactionDetailResponse> latestReactions;           
 
     private boolean isSaved;
-
+         
     @Override
     public FeedItemType getType() {
         return FeedItemType.POST;
