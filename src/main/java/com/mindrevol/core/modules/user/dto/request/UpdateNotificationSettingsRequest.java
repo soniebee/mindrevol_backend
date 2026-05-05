@@ -63,4 +63,7 @@ public class UpdateNotificationSettingsRequest {
     private Boolean dndEnabled;
     private Integer dndStartHour;
     private Integer dndEndHour;
+    
+ // Thêm 1 trường này xuống dưới cùng file (cùng cấp với dndEndHour)
+    private String locationVisibility;
 }

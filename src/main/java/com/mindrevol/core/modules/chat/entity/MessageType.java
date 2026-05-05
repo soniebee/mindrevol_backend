@@ -5,7 +5,8 @@ public enum MessageType {
     IMAGE,
     VIDEO,
     AUDIO,
-    VOICE,  // <--- THÊM CHỮ NÀY VÀO ĐỂ BACKEND NHẬN DIỆN ĐƯỢC
+    VOICE,
     FILE,
-    SYSTEM
+    SYSTEM,
+    CALL_LOG // <--- THÊM MỚI ĐỂ PHÂN BIỆT LỊCH SỬ CUỘC GỌI
 }

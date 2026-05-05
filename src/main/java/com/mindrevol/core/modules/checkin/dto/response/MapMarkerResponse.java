@@ -1,14 +1,11 @@
 package com.mindrevol.core.modules.checkin.dto.response;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class MapMarkerResponse {
     private String checkinId;
     private Double latitude;
@@ -16,4 +13,5 @@ public class MapMarkerResponse {
     private String thumbnailUrl;
     private String userAvatar;
     private String fullname;
+    private LocalDateTime createdAt; // THÊM TRƯỜNG NÀY ĐỂ SORT TIME-LAPSE
 }

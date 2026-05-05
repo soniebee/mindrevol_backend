@@ -1,5 +1,6 @@
 package com.mindrevol.core.modules.checkin.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.mindrevol.core.modules.checkin.entity.ActivityType;
 import com.mindrevol.core.modules.checkin.entity.CheckinStatus;
 import com.mindrevol.core.modules.checkin.entity.CheckinVisibility;
@@ -20,6 +21,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CheckinResponse implements FeedItemResponse {
 
     private String id;

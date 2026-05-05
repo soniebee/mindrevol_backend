@@ -64,7 +64,6 @@ public class UserSettings extends BaseEntity {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean pushEnabled = true;
 
-    // [TASK-201] Tuỳ chỉnh nhận In-app theo danh mục
     @Column(name = "in_app_comment")
     @Builder.Default
     private boolean inAppComment = true;
@@ -93,7 +92,6 @@ public class UserSettings extends BaseEntity {
     @Builder.Default
     private boolean inAppMention = true;
 
-    // [TASK-201] Tuỳ chỉnh nhận Push theo danh mục
     @Column(name = "push_comment")
     @Builder.Default
     private boolean pushComment = true;
@@ -106,7 +104,6 @@ public class UserSettings extends BaseEntity {
     @Builder.Default
     private boolean pushFriendRequestCategory = true;
 
-    // [TASK-201] Tuỳ chỉnh nhận Email theo danh mục
     @Column(name = "email_comment")
     @Builder.Default
     private boolean emailComment = false;
@@ -135,7 +132,6 @@ public class UserSettings extends BaseEntity {
     @Builder.Default
     private boolean emailMention = false;
 
-    // BỔ SUNG SPRINT 2 (TASK-202): Chế độ Không làm phiền (DND)
     @Column(name = "dnd_enabled", columnDefinition = "boolean default false")
     @Builder.Default
     private Boolean dndEnabled = false;
@@ -147,4 +143,9 @@ public class UserSettings extends BaseEntity {
     @Column(name = "dnd_end_hour", columnDefinition = "int default 6")
     @Builder.Default
     private Integer dndEndHour = 6;
+
+    // --- [THÊM MỚI] GHOST MODE CHO BẢN ĐỒ ---
+    @Column(name = "location_visibility", length = 20)
+    @Builder.Default
+    private String locationVisibility = "PRECISE"; // PRECISE, BLURRED, HIDDEN
 }

@@ -32,13 +32,27 @@ public class Mood extends BaseEntity {
     private Box box;
 
     @Column(nullable = false, length = 50)
-    private String icon; // Chứa Emoji, ví dụ: "🔥", "😭"
+    private String icon;
 
     @Column(length = 100)
-    private String message; // Tùy chọn: Ghi chú ngắn gọn (nếu UI có)
+    private String message;
+
+    @Column(name = "spotify_track_id", length = 100)
+    private String spotifyTrackId;
+
+    // --- CONTEXT TAGS ---
+    @Column(length = 100)
+    private String activity; 
+
+    @Column(length = 100)
+    private String location; 
+
+    @Column(length = 50)
+    private String weather; 
+    // --------------------
 
     @Column(name = "expires_at", nullable = false)
-    private LocalDateTime expiresAt; // Thời gian bốc hơi (sau 24h)
+    private LocalDateTime expiresAt;
 
     @OneToMany(mappedBy = "mood", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

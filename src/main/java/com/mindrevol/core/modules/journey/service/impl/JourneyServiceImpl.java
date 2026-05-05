@@ -26,6 +26,7 @@ import com.mindrevol.core.modules.checkin.dto.response.CheckinResponse;
 import com.mindrevol.core.modules.checkin.entity.Checkin;
 import com.mindrevol.core.modules.checkin.mapper.CheckinMapper;
 import com.mindrevol.core.modules.checkin.repository.CheckinRepository;
+import com.mindrevol.core.modules.feed.service.FeedService; // [THÊM IMPORT FEED SERVICE]
 import com.mindrevol.core.modules.journey.dto.request.CreateJourneyRequest;
 import com.mindrevol.core.modules.journey.event.JourneyCreatedEvent;
 import com.mindrevol.core.modules.journey.event.JourneyJoinedEvent;
@@ -50,6 +51,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,6 +74,9 @@ public class JourneyServiceImpl implements JourneyService {
     
     private final BoxRepository boxRepository;
     private final BoxMemberRepository boxMemberRepository; 
+    
+    // [CẬP NHẬT] Tiêm FeedService để xử lý xóa cache
+    private final FeedService feedService;
 
     private LocalDate getTodayInUserTimezone(User user) {
         String tz = user.getTimezone() != null ? user.getTimezone() : "UTC";
@@ -87,7 +92,6 @@ public class JourneyServiceImpl implements JourneyService {
         return boxMemberRepository.existsByBoxIdAndUserId(boxId, userId);
     }
 
-    // [CẬP NHẬT] Xử lý Access đúng nghiệp vụ "Box > Hành trình"
     private boolean hasAccessToJourney(Journey journey, String userId) {
         boolean isParticipant = participantRepository.existsByJourneyIdAndUserId(journey.getId(), userId);
         
@@ -134,25 +138,20 @@ public class JourneyServiceImpl implements JourneyService {
     public List<UserActiveJourneyResponse> getUserPublicJourneys(String targetUserId, String currentUserId) {
         User targetUser = userRepository.findById(targetUserId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        // Kiểm tra quyền xem nếu không phải chính mình
         if (!targetUserId.equals(currentUserId)) {
             List<Friendship> friends = friendshipRepository.findAllAcceptedFriendsList(currentUserId);
             boolean isFriend = (friends != null) && friends.stream().anyMatch(f -> f.getFriend(currentUserId).getId().equals(targetUserId));
             if (!isFriend) return new ArrayList<>(); 
         }
 
-        LocalDate today = getTodayInUserTimezone(targetUser);
-        
-        // Lấy TẤT CẢ hành trình đang hoạt động
-        List<Journey> allJourneys = journeyRepository.findActiveJourneysByUserIdWithMembers(targetUserId, today);
+        List<Journey> allJourneys = journeyRepository.findAllJourneysByUserIdWithMembers(targetUserId);
         
         return allJourneys.stream()
-                .distinct() // BẢO HIỂM 1: Loại bỏ ngay lập tức các hành trình bị DB trả về trùng lặp
+                .distinct() 
                 .map(journey -> {
                     JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
                     return mapSingleJourneyToResponse(journey, p, currentUserId);
                 })
-                // BẢO HIỂM 2: Chỉ giữ lại Hành trình có Visibility là PUBLIC VÀ user đang BẬT hiển thị (isProfileVisible = true)
                 .filter(res -> "PUBLIC".equalsIgnoreCase(res.getVisibility()) && res.isProfileVisible())
                 .collect(Collectors.toList());
     }
@@ -160,24 +159,20 @@ public class JourneyServiceImpl implements JourneyService {
     @Override
     @Transactional(readOnly = true)
     public List<UserActiveJourneyResponse> getUserPrivateJourneys(String targetUserId, String currentUserId) {
-        // Tab riêng tư thì chỉ có chủ nhân mới được xem
         if (!targetUserId.equals(currentUserId)) {
             throw new BadRequestException("Bạn không có quyền xem hành trình riêng tư của người khác.");
         }
         
         User targetUser = userRepository.findById(targetUserId).orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        LocalDate today = getTodayInUserTimezone(targetUser);
         
-        // Lấy TẤT CẢ hành trình đang hoạt động
-        List<Journey> allJourneys = journeyRepository.findActiveJourneysByUserIdWithMembers(targetUserId, today);
+        List<Journey> allJourneys = journeyRepository.findAllJourneysByUserIdWithMembers(targetUserId);
 
         return allJourneys.stream()
-                .distinct() // BẢO HIỂM 1: Loại bỏ hành trình nhân đôi từ DB
+                .distinct() 
                 .map(journey -> {
                     JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journey.getId(), targetUserId).orElse(null);
                     return mapSingleJourneyToResponse(journey, p, currentUserId);
                 })
-                // BẢO HIỂM 2: Tab riêng tư sẽ chứa: (Hành trình vốn dĩ là PRIVATE) HOẶC (Hành trình PUBLIC nhưng bị user ẨN ĐI)
                 .filter(res -> "PRIVATE".equalsIgnoreCase(res.getVisibility()) || !res.isProfileVisible())
                 .collect(Collectors.toList());
     }
@@ -269,7 +264,6 @@ public class JourneyServiceImpl implements JourneyService {
         return JourneyAlertResponse.builder().journeyPendingInvitations(pendingInvites).waitingApprovalRequests(totalRequests).journeyIdsWithRequests(idsWithRequests).build();
     }
 
-    // [CẬP NHẬT] Lấy danh sách bạn bè được phép mời
     @Override
     @Transactional(readOnly = true)
     public List<UserSummaryResponse> getInvitableFriends(String journeyId, String userId) {
@@ -280,17 +274,15 @@ public class JourneyServiceImpl implements JourneyService {
         List<User> candidates;
         
         if (journey.getBox() != null) {
-            // Nghiệp vụ: Nếu Hành trình trong Box, CHỈ lọc ra những người trong Box
             List<BoxMember> boxMembers = boxMemberRepository.findByBoxId(journey.getBox().getId());
             candidates = boxMembers.stream().map(BoxMember::getUser).collect(Collectors.toList());
         } else {
-            // Hành trình độc lập thì lấy bạn bè
             List<Friendship> friendships = friendshipRepository.findAllAcceptedFriendsList(userId);
             candidates = friendships.stream().map(f -> f.getFriend(userId)).collect(Collectors.toList());
         }
 
         return candidates.stream()
-                .filter(c -> !participantIds.contains(c.getId())) // Lọc bỏ những ai ĐÃ LÀ participant
+                .filter(c -> !participantIds.contains(c.getId())) 
                 .map(c -> UserSummaryResponse.builder().id(c.getId()).fullname(c.getFullname()).avatarUrl(c.getAvatarUrl()).handle(c.getHandle()).build())
                 .collect(Collectors.toList());
     }
@@ -330,6 +322,10 @@ public class JourneyServiceImpl implements JourneyService {
         eventPublisher.publishEvent(new JourneyCreatedEvent(journey, currentUser));
         
         JourneyParticipant pInfo = journey.getBox() == null ? participantRepository.findByJourneyIdAndUserId(journey.getId(), userId).orElse(null) : null;
+        
+        // [CẬP NHẬT CACHE]
+        feedService.evictFeedCache(userId);
+
         return mapToResponse(journey, pInfo, journey.getBox() != null, null);
     }
 
@@ -342,7 +338,6 @@ public class JourneyServiceImpl implements JourneyService {
 
         if (hasAccessToJourney(journey, userId)) return getJourneyDetail(userId, journey.getId());
 
-        // [CẬP NHẬT] Chặn người ngoài Box
         if (journey.getBox() != null && !isUserInBox(journey.getBox().getId(), userId)) {
             throw new BadRequestException("Phải tham gia Không gian chứa Hành trình này trước.");
         }
@@ -361,6 +356,10 @@ public class JourneyServiceImpl implements JourneyService {
         JourneyParticipant member = JourneyParticipant.builder().journey(journey).user(currentUser).role(JourneyRole.GUEST).joinedAt(LocalDateTime.now()).isProfileVisible(true).build();
         participantRepository.save(member);
         eventPublisher.publishEvent(new JourneyJoinedEvent(journey, currentUser));
+        
+        // [CẬP NHẬT CACHE]
+        feedService.evictFeedCache(userId);
+
         return mapToResponse(journey, member, false, null);
     }
 
@@ -375,7 +374,6 @@ public class JourneyServiceImpl implements JourneyService {
              if(journeyRequestRepository.existsByJourneyIdAndUserIdAndStatus(journeyId, userId, RequestStatus.PENDING)) pendingStatus = "PENDING";
         }
         
-        // Cập nhật lại Security check
         if (journey.getVisibility() == JourneyVisibility.PRIVATE && participant == null && !isBoxMember && pendingStatus == null) {
             throw new BadRequestException("Đây là hành trình riêng tư.");
         }
@@ -406,7 +404,11 @@ public class JourneyServiceImpl implements JourneyService {
         Journey journey = getJourneyEntity(journeyId);
         JourneyParticipant p = participantRepository.findByJourneyIdAndUserId(journeyId, userId).orElseThrow(() -> new BadRequestException("Bạn không tham gia (với tư cách Khách)"));
         if (p.getRole() == JourneyRole.OWNER) throw new BadRequestException("Chủ hành trình không thể rời đi.");
+        
         participantRepository.delete(p);
+        
+        // [CẬP NHẬT CACHE] Xóa cache bảng tin của người dùng khi rời hành trình
+        feedService.evictFeedCache(userId);
     }
 
     @Override
@@ -428,7 +430,12 @@ public class JourneyServiceImpl implements JourneyService {
         if (request.getThemeColor() != null) journey.setThemeColor(request.getThemeColor());
         if (request.getAvatar() != null) journey.setAvatar(request.getAvatar());
 
-        return mapToResponse(journeyRepository.save(journey), p, journey.getBox() != null && isUserInBox(journey.getBox().getId(), userId), null);
+        Journey updated = journeyRepository.save(journey);
+        
+        // [CẬP NHẬT CACHE]
+        feedService.evictFeedCache(userId);
+
+        return mapToResponse(updated, p, updated.getBox() != null && isUserInBox(updated.getBox().getId(), userId), null);
     }
 
     @Override
@@ -436,7 +443,6 @@ public class JourneyServiceImpl implements JourneyService {
     public void kickMember(String journeyId, String memberId, String requesterId) {
         Journey journey = getJourneyEntity(journeyId);
         boolean isCreator = journey.getCreator().getId().equals(requesterId);
-        // [CẬP NHẬT] Quyền tối cao: Chủ Box được kick
         boolean isBoxOwner = journey.getBox() != null && journey.getBox().getOwner().getId().equals(requesterId);
 
         if (!isCreator && !isBoxOwner) {
@@ -445,7 +451,11 @@ public class JourneyServiceImpl implements JourneyService {
 
         JourneyParticipant vic = participantRepository.findByJourneyIdAndUserId(journeyId, memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Thành viên không phải là Khách (Guest) trong hành trình này"));
+        
         participantRepository.delete(vic);
+        
+        // [CẬP NHẬT CACHE] Xóa cache bảng tin của thành viên bị kick để feed của họ tự làm mới
+        feedService.evictFeedCache(memberId);
     }
 
     @Override
@@ -454,13 +464,20 @@ public class JourneyServiceImpl implements JourneyService {
         JourneyParticipant owner = participantRepository.findByJourneyIdAndUserId(journeyId, currentOwnerId).orElseThrow(() -> new BadRequestException("Lỗi xác thực"));
         if (owner.getRole() != JourneyRole.OWNER) throw new BadRequestException("Không phải chủ.");
         JourneyParticipant newOwner = participantRepository.findByJourneyIdAndUserId(journeyId, newOwnerId).orElseThrow(() -> new BadRequestException("Người nhận không trong nhóm."));
+        
         owner.setRole(JourneyRole.MEMBER);
         newOwner.setRole(JourneyRole.OWNER);
+        
         participantRepository.save(owner);
         participantRepository.save(newOwner);
+        
         Journey j = getJourneyEntity(journeyId);
         j.setCreator(newOwner.getUser());
         journeyRepository.save(j);
+        
+        // [CẬP NHẬT CACHE] Xóa cache của cả người cho và người nhận
+        feedService.evictFeedCache(currentOwnerId);
+        feedService.evictFeedCache(newOwnerId);
     }
 
     @Override
@@ -468,21 +485,51 @@ public class JourneyServiceImpl implements JourneyService {
     public List<JourneyParticipantResponse> getJourneyParticipants(String journeyId) {
         Journey journey = getJourneyEntity(journeyId);
         List<JourneyParticipantResponse> responses = new ArrayList<>();
+        
+        // [MỚI] Sử dụng Set để đánh dấu những người đã được thêm, chống trùng lặp
+        Set<String> processedUserIds = new HashSet<>();
 
         if (journey.getBox() != null) {
             List<BoxMember> boxMembers = boxMemberRepository.findByBoxId(journey.getBox().getId());
             for (BoxMember bm : boxMembers) {
                 User u = bm.getUser();
+                processedUserIds.add(u.getId());
+                
+                // [ĐÃ SỬA] Đếm chính xác số bài đăng của người này trong DB thay vì hardcode 0
+                int checkinCount = checkinRepository.findByJourneyIdAndUserId(journeyId, u.getId()).size();
+                
                 UserSummaryResponse uDto = UserSummaryResponse.builder().id(u.getId()).fullname(u.getFullname()).avatarUrl(u.getAvatarUrl()).handle(u.getHandle()).build();
-                responses.add(JourneyParticipantResponse.builder().id("BOX_" + bm.getId()).user(uDto).role("BOX_MEMBER").joinedAt(bm.getJoinedAt()).currentStreak(0).totalCheckins(0).build());
+                responses.add(JourneyParticipantResponse.builder()
+                        .id("BOX_" + bm.getId())
+                        .user(uDto)
+                        .role("BOX_MEMBER")
+                        .joinedAt(bm.getJoinedAt())
+                        .currentStreak(0)
+                        .totalCheckins(checkinCount) // Sử dụng số đếm chuẩn
+                        .build());
             }
         }
 
         List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
         for (JourneyParticipant p : participants) {
             User u = p.getUser();
+            
+            // [ĐÃ SỬA] Nếu người này đã được lấy từ danh sách Box rồi thì bỏ qua để chống hiển thị 2 lần
+            if (processedUserIds.contains(u.getId())) {
+                continue;
+            }
+            processedUserIds.add(u.getId());
+            
             UserSummaryResponse uDto = UserSummaryResponse.builder().id(u.getId()).fullname(u.getFullname()).avatarUrl(u.getAvatarUrl()).handle(u.getHandle()).build();
-            responses.add(JourneyParticipantResponse.builder().id(p.getId()).user(uDto).role(p.getRole().name()).joinedAt(p.getJoinedAt()).currentStreak(p.getCurrentStreak()).totalCheckins(p.getTotalCheckins()).lastCheckinAt(p.getLastCheckinAt()).build());
+            responses.add(JourneyParticipantResponse.builder()
+                    .id(p.getId())
+                    .user(uDto)
+                    .role(p.getRole().name())
+                    .joinedAt(p.getJoinedAt())
+                    .currentStreak(p.getCurrentStreak())
+                    .totalCheckins(p.getTotalCheckins())
+                    .lastCheckinAt(p.getLastCheckinAt())
+                    .build());
         }
 
         return responses;
@@ -493,13 +540,23 @@ public class JourneyServiceImpl implements JourneyService {
     public void deleteJourney(String journeyId, String userId) {
         Journey journey = getJourneyEntity(journeyId);
         boolean isCreator = journey.getCreator().getId().equals(userId);
-        // [CẬP NHẬT] Quyền tối cao: Chủ Box được giải tán Hành trình
         boolean isBoxOwner = journey.getBox() != null && journey.getBox().getOwner().getId().equals(userId);
 
         if (!isCreator && !isBoxOwner) {
             throw new BadRequestException("Chỉ người tạo hoặc Chủ Không gian mới được xóa hành trình này.");
         }
+        
+        // Lấy danh sách thành viên trước khi xoá để evict cache
+        List<JourneyParticipant> participants = participantRepository.findAllByJourneyId(journeyId);
+        
         journeyRepository.deleteById(journeyId);
+        
+        // [CẬP NHẬT CACHE] Xóa cache bảng tin của tất cả thành viên trong hành trình bị giải tán
+        for (JourneyParticipant p : participants) {
+            feedService.evictFeedCache(p.getUser().getId());
+        }
+        // Xóa luôn cache của người thực hiện thao tác xóa
+        feedService.evictFeedCache(userId);
     }
 
     @Override
@@ -526,7 +583,6 @@ public class JourneyServiceImpl implements JourneyService {
         
         User u = req.getUser();
 
-        // [CẬP NHẬT] Check trước khi duyệt, người này có trong Box không?
         if (journey.getBox() != null && !isUserInBox(journey.getBox().getId(), u.getId())) {
             throw new BadRequestException("Người dùng này không thuộc Không gian chứa hành trình.");
         }
@@ -535,6 +591,9 @@ public class JourneyServiceImpl implements JourneyService {
             validateJourneyCapacity(journey);
             participantRepository.save(JourneyParticipant.builder().journey(journey).user(u).role(JourneyRole.GUEST).joinedAt(LocalDateTime.now()).build());
             eventPublisher.publishEvent(new JourneyJoinedEvent(journey, u));
+            
+            // [CẬP NHẬT CACHE] Evict cache của người được duyệt để Feed tải dữ liệu Hành trình mới
+            feedService.evictFeedCache(u.getId());
         }
         req.setStatus(RequestStatus.ACCEPTED);
         journeyRequestRepository.save(req);
@@ -555,7 +614,6 @@ public class JourneyServiceImpl implements JourneyService {
         return JourneyStatus.ONGOING;
     }
 
-    // [CẬP NHẬT] Fix bug lấy sai Role của UI nếu user là participant trong Box
     private JourneyResponse mapToResponse(Journey journey, JourneyParticipant currentParticipant, boolean isBoxMember, String overrideRole) {
         long totalBoxMembers = journey.getBox() != null ? boxMemberRepository.countByBoxId(journey.getBox().getId()) : 0;
         long totalGuests = participantRepository.countByJourneyId(journey.getId());

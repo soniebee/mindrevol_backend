@@ -55,4 +55,6 @@ public interface CheckinService {
 	List<CheckinResponse> getJourneyPhotosForRecap(String journeyId);
 	
 	List<CheckinResponse> getMultipleJourneysPhotosForRecap(List<String> journeyIds);
+
+	List<MapMarkerResponse> getUserMapMarkers(String targetUserId, User currentUser);
 }
