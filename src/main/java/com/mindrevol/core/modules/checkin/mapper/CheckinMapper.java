@@ -22,6 +22,7 @@ public interface CheckinMapper {
     
     // Ignore field này vì sẽ được enrich sau trong Service
     @Mapping(target = "latestReactions", ignore = true)
+    @Mapping(target = "spotifyTrackId", source = "spotifyTrackId")
     
     // Các trường mediaType, videoUrl, imageFileId sẽ tự động map vì trùng tên
     CheckinResponse toResponse(Checkin checkin);

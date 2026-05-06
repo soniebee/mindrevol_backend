@@ -98,7 +98,6 @@ public class ChatController {
         return ResponseEntity.ok(ApiResponse.success(chatService.editMessage(messageId, userId, newContent)));
     }
 
-    // [CẬP NHẬT] Các API cho quản lý hội thoại
     @PutMapping("/conversations/{conversationId}/pin")
     public ResponseEntity<ApiResponse<Void>> togglePin(@PathVariable String conversationId) {
         chatService.togglePinConversation(conversationId, SecurityUtils.getCurrentUserId());
@@ -125,7 +124,6 @@ public class ChatController {
         );
     }
     
-    
     @PutMapping("/messages/{messageId}/pin")
     public ResponseEntity<ApiResponse<MessageResponse>> togglePinMessage(@PathVariable String messageId) {
         return ResponseEntity.ok(ApiResponse.success(chatService.togglePinMessage(messageId, SecurityUtils.getCurrentUserId())));
@@ -141,8 +139,6 @@ public class ChatController {
             @PathVariable String conversationId, @RequestParam String keyword) {
         return ResponseEntity.ok(ApiResponse.success(chatService.searchMessages(conversationId, keyword)));
     }
-    
-// Thêm vào: src/main/java/com/mindrevol/backend/modules/chat/controller/ChatController.java
     
     @GetMapping("/conversations/{conversationId}/messages/jump")
     public ResponseEntity<ApiResponse<CursorPageResponse<MessageResponse>>> jumpToMessage(

@@ -187,19 +187,21 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    // [QUAN TRỌNG] Đã cập nhật thành get... và dùng Boolean.TRUE.equals để tránh NullPointerException
     private NotificationSettingsResponse toNotificationSettingsResponse(UserSettings settings) {
         return NotificationSettingsResponse.builder()
-                .commentEnabled(settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment())
-                .reactionEnabled(settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction())
-                .messageEnabled(settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage())
-                .journeyEnabled(settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney())
-                .friendRequestEnabled(settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest())
-                .boxInviteEnabled(settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite())
-                .mentionEnabled(settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention())
-                // Bổ sung DND
+                .commentEnabled(Boolean.TRUE.equals(settings.getInAppComment()) || Boolean.TRUE.equals(settings.getPushComment()) || Boolean.TRUE.equals(settings.getPushNewComment()) || Boolean.TRUE.equals(settings.getEmailComment()))
+                .reactionEnabled(Boolean.TRUE.equals(settings.getInAppReaction()) || Boolean.TRUE.equals(settings.getPushReaction()) || Boolean.TRUE.equals(settings.getEmailReaction()))
+                .messageEnabled(Boolean.TRUE.equals(settings.getInAppMessage()) || Boolean.TRUE.equals(settings.getPushMessage()) || Boolean.TRUE.equals(settings.getEmailMessage()))
+                .journeyEnabled(Boolean.TRUE.equals(settings.getInAppJourney()) || Boolean.TRUE.equals(settings.getPushJourney()) || Boolean.TRUE.equals(settings.getPushJourneyInvite()) || Boolean.TRUE.equals(settings.getEmailJourney()))
+                .friendRequestEnabled(Boolean.TRUE.equals(settings.getInAppFriendRequest()) || Boolean.TRUE.equals(settings.getPushFriendRequestCategory()) || Boolean.TRUE.equals(settings.getPushFriendRequest()) || Boolean.TRUE.equals(settings.getEmailFriendRequest()))
+                .boxInviteEnabled(Boolean.TRUE.equals(settings.getInAppBoxInvite()) || Boolean.TRUE.equals(settings.getPushBoxInvite()) || Boolean.TRUE.equals(settings.getEmailBoxInvite()))
+                .mentionEnabled(Boolean.TRUE.equals(settings.getInAppMention()) || Boolean.TRUE.equals(settings.getPushMention()) || Boolean.TRUE.equals(settings.getEmailMention()))
+                // Bổ sung DND và Ghost Mode (Bảo toàn dữ liệu để Frontend cập nhật đúng)
                 .dndEnabled(settings.getDndEnabled())
                 .dndStartHour(settings.getDndStartHour())
                 .dndEndHour(settings.getDndEndHour())
+                .locationVisibility(settings.getLocationVisibility())
                 .build();
     }
 }

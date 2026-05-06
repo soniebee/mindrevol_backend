@@ -21,7 +21,6 @@ public class CallController {
         return ApiResponse.success(callSignalingService.initiateCall(SecurityUtils.getCurrentUserId(), receiverId, type, conversationId));
     }
 
-    // API GỌI NHÓM TRONG BOX CHAT
     @PostMapping("/signaling/initiate-box")
     public ApiResponse<CallSession> initiateBoxCall(@RequestParam String boxId, @RequestParam String type, @RequestParam String conversationId) {
         return ApiResponse.success(callSignalingService.initiateBoxCall(SecurityUtils.getCurrentUserId(), boxId, conversationId, type));
@@ -33,20 +32,25 @@ public class CallController {
         return ApiResponse.success(null);
     }
 
+    // 🔥 API MỚI: Dành cho người nghe bấm Accept cuộc gọi nhóm
+    @PostMapping("/signaling/respond-box/{roomId}")
+    public ApiResponse<Void> respondToBoxCall(@PathVariable String roomId, @RequestParam String boxId, @RequestParam String action) {
+        callSignalingService.respondToBoxCall(roomId, boxId, SecurityUtils.getCurrentUserId(), action);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/signaling/end/{roomId}")
     public ApiResponse<Void> endCall(@PathVariable String roomId) {
         callSignalingService.endCall(roomId);
         return ApiResponse.success(null);
     }
 
-    // API RỜI/KẾT THÚC GỌI NHÓM
     @PostMapping("/signaling/end-box/{roomId}")
     public ApiResponse<Void> endBoxCall(@PathVariable String roomId, @RequestParam String boxId) {
         callSignalingService.leaveBoxCall(boxId, roomId);
         return ApiResponse.success(null);
     }
 
-    // API LẤY TOKEN CỦA ZEGO CLOUD
     @GetMapping("/token/{roomId}")
     public ApiResponse<String> getCallToken(@PathVariable String roomId) {
         String token = callStrategy.generateCallToken(SecurityUtils.getCurrentUserId(), roomId);

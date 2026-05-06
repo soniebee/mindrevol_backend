@@ -1,6 +1,8 @@
 package com.mindrevol.core.modules.call.service;
 
 import com.mindrevol.core.common.exception.BadRequestException;
+import com.mindrevol.core.modules.box.entity.BoxMember;
+import com.mindrevol.core.modules.box.repository.BoxMemberRepository;
 import com.mindrevol.core.modules.call.dto.CallSession;
 import com.mindrevol.core.modules.chat.entity.Conversation;
 import com.mindrevol.core.modules.chat.entity.Message;
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -38,7 +41,7 @@ public class CallSignalingService {
     
     private final MessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
-    
+    private final BoxMemberRepository boxMemberRepository;
     private final AsyncTaskProducer asyncTaskProducer;
 
     private static final String CALL_KEY_PREFIX = "call_session:";
@@ -62,10 +65,7 @@ public class CallSignalingService {
 
         redisTemplate.opsForValue().set(CALL_KEY_PREFIX + roomId, session, 45, TimeUnit.SECONDS);
 
-        // Bắn tín hiệu WebSocket cho App đang mở
         sendWebSocket(receiverId, "INCOMING_CALL", session);
-        
-        // Bắn FCM Push Notification cho App đang tắt
         sendOfflinePushNotification(receiverId, session);
 
         return session;
@@ -81,10 +81,7 @@ public class CallSignalingService {
             session.setStatus("IN_PROGRESS");
             session.setStartTime(System.currentTimeMillis());
             
-            // 🔥 TĂNG THỜI GIAN SỐNG TRÊN REDIS KHI CHẤP NHẬN (Tránh bị expire giữa chừng)
             redisTemplate.opsForValue().set(key, session, 2, TimeUnit.HOURS);
-            
-            // Đánh dấu người dùng đang bận
             redisTemplate.opsForValue().set(USER_IN_CALL_PREFIX + session.getCallerId(), "1", 2, TimeUnit.HOURS);
             redisTemplate.opsForValue().set(USER_IN_CALL_PREFIX + receiverId, "1", 2, TimeUnit.HOURS);
             
@@ -92,9 +89,21 @@ public class CallSignalingService {
         } 
         else if ("REJECT".equals(action)) {
             saveCallLog(session, "REJECTED", 0);
-            // Thay vì xóa ngay, hãy để nó tự hết hạn sau vài giây để tránh lỗi race condition
             redisTemplate.expire(key, 5, TimeUnit.SECONDS); 
             sendWebSocket(session.getCallerId(), "CALL_REJECTED", session);
+        }
+    }
+
+    // 🔥 HÀM MỚI: Xử lý khi có ai đó bấm Nghe máy cuộc gọi nhóm
+    public void respondToBoxCall(String roomId, String boxId, String receiverId, String action) {
+        String key = BOX_CALL_PREFIX + boxId;
+        CallSession session = (CallSession) redisTemplate.opsForValue().get(key);
+        
+        if (session == null) throw new BadRequestException("Cuộc gọi nhóm đã kết thúc.");
+
+        if ("ACCEPT".equals(action)) {
+            // Khi có 1 người bấm Accept, bắn WebSocket về cho NGƯỜI GỌI (Caller) 
+            sendWebSocket(session.getCallerId(), "BOX_CALL_ACCEPTED", session);
         }
     }
 
@@ -116,17 +125,13 @@ public class CallSignalingService {
         }
     }
 
- // 🔥 HÀM MỚI: BẮT ĐẦU HOẶC THAM GIA CUỘC GỌI NHÓM TRONG BOX
     public CallSession initiateBoxCall(String callerId, String boxId, String conversationId, String type) {
         String key = BOX_CALL_PREFIX + boxId;
         
-        // 1. Kiểm tra xem Box này đang có cuộc gọi nào diễn ra không
         if (Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
-            // Nếu có, trả về phòng hiện tại để người dùng Join vào
             return (CallSession) redisTemplate.opsForValue().get(key);
         }
 
-        // 2. Nếu chưa có, tạo phòng mới
         User caller = userRepository.findById(callerId).orElseThrow();
         String roomId = "room_box_" + boxId + "_" + UUID.randomUUID().toString().substring(0, 5);
 
@@ -134,47 +139,39 @@ public class CallSignalingService {
                 .roomId(roomId)
                 .conversationId(conversationId)
                 .callerId(callerId)
-                .receiverId(boxId) // Mượn trường này lưu boxId
+                .receiverId(boxId) 
                 .callerName(caller.getFullname())
                 .callerAvatar(caller.getAvatarUrl())
                 .callType(type)
-                .status("IN_PROGRESS") // Nhóm thì vào thẳng luôn, không có RINGING
+                .status("IN_PROGRESS") 
                 .timestamp(System.currentTimeMillis())
                 .startTime(System.currentTimeMillis())
                 .isGroup(true)
                 .build();
 
-        // Lưu phòng lên Redis (Sống tối đa 4 tiếng nếu không ai dọn dẹp)
         redisTemplate.opsForValue().set(key, session, 4, TimeUnit.HOURS);
-
-        // Lưu tin nhắn "Cuộc gọi nhóm đã bắt đầu" vào Chat
         saveCallLog(session, "GROUP_STARTED", 0);
 
-        // Bắn WebSocket báo cho mọi người trong Box biết để hiện nút "Tham gia"
-        NotificationResponse payload = NotificationResponse.builder()
-                .type("BOX_CALL_STARTED")
-                .referenceId(roomId)
-                .messageArgs(boxId + "|" + type + "|" + caller.getFullname())
-                .build();
-        
-        // Gửi chung vào topic của conversation đó
-        messagingTemplate.convertAndSend("/topic/conversations/" + conversationId, payload);
+        List<BoxMember> members = boxMemberRepository.findByBoxId(boxId);
+        for (BoxMember member : members) {
+            String targetUserId = member.getUser().getId();
+            
+            if (!targetUserId.equals(callerId)) {
+                sendWebSocket(targetUserId, "BOX_CALL_STARTED", session);
+                sendOfflinePushNotification(targetUserId, session);
+            }
+        }
 
         return session;
     }
 
-    // 🔥 HÀM MỚI: KẾT THÚC HOẶC RỜI CUỘC GỌI NHÓM
     public void leaveBoxCall(String boxId, String roomId) {
-        // Trong kiến trúc SFU của Zego, việc đếm số người trong phòng nên được làm ở Frontend.
-        // Tuy nhiên để đơn giản, nếu người khởi tạo cúp máy hoặc phòng trống, ta xóa key Redis.
-        // Tạm thời cung cấp API dọn dẹp key này khi cuộc gọi nhóm thực sự kết thúc.
         String key = BOX_CALL_PREFIX + boxId;
         CallSession session = (CallSession) redisTemplate.opsForValue().get(key);
         
         if (session != null && session.getRoomId().equals(roomId)) {
             redisTemplate.delete(key);
             
-            // Bắn tín hiệu phòng đã đóng
             NotificationResponse payload = NotificationResponse.builder()
                     .type("BOX_CALL_ENDED")
                     .referenceId(roomId)
@@ -184,7 +181,6 @@ public class CallSignalingService {
         }
     }
 
-    // Sửa lại hàm saveCallLog một chút để hỗ trợ Group
     private void saveCallLog(CallSession session, String status, long durationSeconds) {
         try {
             String content = String.format("%s|%s|%d", session.getCallType(), status, durationSeconds);
@@ -225,7 +221,8 @@ public class CallSignalingService {
         NotificationResponse payload = NotificationResponse.builder()
                 .type(type)
                 .referenceId(session.getRoomId())
-                .messageArgs(session.getCallerId() + "|" + session.getCallerName() + "|" + session.getCallType() + "|" + session.getCallerAvatar())
+                // 🔥 ĐÃ SỬA: Gửi thêm receiverId (boxId) vào cuối args
+                .messageArgs(session.getCallerId() + "|" + session.getCallerName() + "|" + session.getCallType() + "|" + session.getCallerAvatar() + "|" + session.getReceiverId())
                 .build();
 
         String principalName = userRepository.findById(userId).map(User::getEmail).orElse(userId);
@@ -253,9 +250,6 @@ public class CallSignalingService {
         }
     }
     
-    /**
-     * Dùng cho CallDisconnectListener khi WebSocket bị ngắt đột ngột
-     */
     public void forceEndActiveCallsByUserId(String userId) {
         Set<String> keys = redisTemplate.keys(CALL_KEY_PREFIX + "*");
         if (keys != null && !keys.isEmpty()) {
@@ -267,30 +261,20 @@ public class CallSignalingService {
                 }
             }
         } else {
-            // Đảm bảo dọn dẹp cờ BUSY nếu kẹt
             redisTemplate.delete(USER_IN_CALL_PREFIX + userId);
         }
     }
 
-    /**
-     * Dùng cho CallCleanupJob quét ngầm định kỳ (BẢN TEST - XÓA LIỀN SAU 5 GIÂY)
-     */
     public void cleanupStaleCalls() {
         long now = System.currentTimeMillis();
         
-        // 1. DỌN DẸP CÁC PHÒNG GỌI BỊ KẸT
         Set<String> keys = redisTemplate.keys(CALL_KEY_PREFIX + "*");
         if (keys != null) {
             for (String key : keys) {
                 CallSession session = (CallSession) redisTemplate.opsForValue().get(key);
                 if (session != null) {
-                    // Đã hạ xuống 5000 ms (5 giây) để test
                     boolean isStaleRinging = "RINGING".equals(session.getStatus()) && (now - session.getTimestamp() > 5000);
                     boolean isStaleInProgress = "IN_PROGRESS".equals(session.getStatus()) && (now - session.getStartTime() > 5000);
-                    
-                    // Nếu bạn muốn XÓA SẠCH SÀNH SANH KHÔNG CẦN CHỜ GIÂY NÀO, bỏ luôn điều kiện thời gian:
-                    // boolean isStaleRinging = "RINGING".equals(session.getStatus());
-                    // boolean isStaleInProgress = "IN_PROGRESS".equals(session.getStatus());
 
                     if (isStaleRinging || isStaleInProgress) {
                         log.info("Dọn dẹp Stale Call (TEST MODE): {}", session.getRoomId());
@@ -300,8 +284,6 @@ public class CallSignalingService {
             }
         }
 
-        // 2. DỌN DẸP CỜ BÁO BẬN MỒ CÔI (GHOST BUSY FLAGS)
-        // Phần này vốn dĩ đã là "xóa liền" ngay khi nó phát hiện không có session ở trên
         Set<String> busyKeys = redisTemplate.keys(USER_IN_CALL_PREFIX + "*");
         if (busyKeys != null) {
             for (String busyKey : busyKeys) {
@@ -318,7 +300,6 @@ public class CallSignalingService {
                     }
                 }
 
-                // Nếu không có session -> Xóa cờ ngay lập tức
                 if (!isActuallyInCall) {
                     log.info("Dọn dẹp cờ báo bận mồ côi cho user: {}", userId);
                     redisTemplate.delete(busyKey);

@@ -20,19 +20,12 @@ import com.mindrevol.core.modules.user.service.UserService;
 import com.mindrevol.core.modules.checkin.dto.response.CalendarRecapResponse;
 import com.mindrevol.core.common.exception.BadRequestException;
 import com.mindrevol.core.common.exception.ResourceNotFoundException;
-import com.mindrevol.core.modules.user.dto.request.BlockUserDto;
-import com.mindrevol.core.modules.user.dto.request.ChangePasswordDto;
-import com.mindrevol.core.modules.user.dto.request.FollowUserDto;
-import com.mindrevol.core.modules.user.dto.request.UpdateProfileDto;
 import com.mindrevol.core.modules.user.dto.response.LinkedAccountResponse;
-import com.mindrevol.core.modules.user.dto.response.NotificationSettingsResponse;
 import com.mindrevol.core.modules.user.dto.response.UserProfileResponse;
-import com.mindrevol.core.modules.user.dto.response.UserPublicResponse;
 import com.mindrevol.core.modules.user.entity.AccountType;
 import com.mindrevol.core.modules.user.entity.Friendship;
 import com.mindrevol.core.modules.user.entity.FriendshipStatus;
 import com.mindrevol.core.modules.user.entity.User;
-import com.mindrevol.core.modules.user.entity.UserBlock;
 import com.mindrevol.core.modules.user.mapper.UserMapper;
 import com.mindrevol.core.modules.user.repository.FriendshipRepository;
 import com.mindrevol.core.modules.auth.repository.SocialAccountRepository;
@@ -40,9 +33,6 @@ import com.mindrevol.core.modules.user.repository.UserBlockRepository;
 import com.mindrevol.core.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -313,14 +303,15 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    // [QUAN TRỌNG] Đã cập nhật thành get... và dùng Boolean.TRUE.equals để tránh NullPointerException
     private void normalizeSimpleCategorySettings(UserSettings settings) {
-        boolean commentEnabled = settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
-        boolean reactionEnabled = settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
-        boolean messageEnabled = settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
-        boolean journeyEnabled = settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
-        boolean friendEnabled = settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
-        boolean boxInviteEnabled = settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
-        boolean mentionEnabled = settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
+        boolean commentEnabled = Boolean.TRUE.equals(settings.getInAppComment()) || Boolean.TRUE.equals(settings.getPushComment()) || Boolean.TRUE.equals(settings.getPushNewComment()) || Boolean.TRUE.equals(settings.getEmailComment());
+        boolean reactionEnabled = Boolean.TRUE.equals(settings.getInAppReaction()) || Boolean.TRUE.equals(settings.getPushReaction()) || Boolean.TRUE.equals(settings.getEmailReaction());
+        boolean messageEnabled = Boolean.TRUE.equals(settings.getInAppMessage()) || Boolean.TRUE.equals(settings.getPushMessage()) || Boolean.TRUE.equals(settings.getEmailMessage());
+        boolean journeyEnabled = Boolean.TRUE.equals(settings.getInAppJourney()) || Boolean.TRUE.equals(settings.getPushJourney()) || Boolean.TRUE.equals(settings.getPushJourneyInvite()) || Boolean.TRUE.equals(settings.getEmailJourney());
+        boolean friendEnabled = Boolean.TRUE.equals(settings.getInAppFriendRequest()) || Boolean.TRUE.equals(settings.getPushFriendRequestCategory()) || Boolean.TRUE.equals(settings.getPushFriendRequest()) || Boolean.TRUE.equals(settings.getEmailFriendRequest());
+        boolean boxInviteEnabled = Boolean.TRUE.equals(settings.getInAppBoxInvite()) || Boolean.TRUE.equals(settings.getPushBoxInvite()) || Boolean.TRUE.equals(settings.getEmailBoxInvite());
+        boolean mentionEnabled = Boolean.TRUE.equals(settings.getInAppMention()) || Boolean.TRUE.equals(settings.getPushMention()) || Boolean.TRUE.equals(settings.getEmailMention());
 
         settings.setInAppEnabled(true); settings.setPushEnabled(true); settings.setEmailEnabled(true);
         settings.setInAppComment(commentEnabled); settings.setPushComment(commentEnabled); settings.setPushNewComment(commentEnabled); settings.setEmailComment(commentEnabled);

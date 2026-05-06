@@ -71,7 +71,11 @@ public class ChatServiceImpl implements ChatService {
         // 2. Chuẩn hóa map thả cảm xúc (Reactions)
         if (msg.getReactions() != null && !msg.getReactions().isEmpty()) {
             res.setReactions(msg.getReactions().stream()
-                    .collect(Collectors.toMap(r -> r.getUser().getId(), MessageReaction::getReactionType)));
+                    .collect(Collectors.toMap(
+                            r -> r.getUser().getId(), 
+                            MessageReaction::getReactionType,
+                            (existing, replacement) -> existing 
+                    )));
         } else {
             res.setReactions(new HashMap<>());
         }
@@ -79,12 +83,14 @@ public class ChatServiceImpl implements ChatService {
         // 3. Che nội dung nếu tin nhắn bị thu hồi
         if (msg.isDeleted()) {
             res.setContent("Tin nhắn đã bị thu hồi");
+            // [FIX LỖI KẸT CẢM XÚC]: Xoá sạch icon và metadata đính kèm trên UI thông qua Socket
+            res.setReactions(new HashMap<>());
+            res.setMetadata(new HashMap<>());
         }
         
         return res;
     }
     // =====================================================================================
-
 
     @Override
     @Transactional
@@ -93,12 +99,10 @@ public class ChatServiceImpl implements ChatService {
         User sender = userRepository.getReferenceById(senderId);
         String receiverId = null;
 
-        // 1. Xác định Conversation và Receiver
         if (request.getConversationId() != null && !request.getConversationId().isEmpty()) {
             conversation = conversationRepository.findById(request.getConversationId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy cuộc trò chuyện"));
             
-            // Nếu là chat 1-1, lấy ID người nhận để chuẩn bị kiểm tra chặn
             if (conversation.getBoxId() == null) {
                 receiverId = conversation.getParticipants().stream()
                         .filter(p -> !p.getUser().getId().equals(senderId))
@@ -111,7 +115,6 @@ public class ChatServiceImpl implements ChatService {
             
             List<Conversation> existingConvs = conversationRepository.findByUsers(senderId, receiverId);
             if (existingConvs.isEmpty()) {
-                // Nếu chưa có đoạn chat, kiểm tra chặn trước khi tạo mới
                 if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
                     throw new BadRequestException("Không thể bắt đầu trò chuyện do đã chặn người dùng này.");
                 }
@@ -121,14 +124,12 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // 2. [SỬA BUG 4] KIỂM TRA CHẶN TRƯỚC KHI GỬI TIN NHẮN (Áp dụng cho mọi tin nhắn 1-1)
         if (receiverId != null) {
             if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
                 throw new BadRequestException("Không thể gửi tin nhắn. Người dùng này đã bị chặn.");
             }
         }
 
-        // 3. Tiến hành lưu tin nhắn
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(sender)
@@ -142,7 +143,6 @@ public class ChatServiceImpl implements ChatService {
 
         message = messageRepository.save(message);
 
-        // 4. Cập nhật hội thoại
         String previewContent = message.getType() == MessageType.IMAGE ? "[Hình ảnh]" : 
                                 message.getType() == MessageType.VOICE ? "[Ghi âm]" : 
                                 message.getType() == MessageType.FILE ? "[Tệp đính kèm]" : message.getContent();
@@ -151,7 +151,6 @@ public class ChatServiceImpl implements ChatService {
         conversation.setLastSenderId(senderId);
         conversationRepository.save(conversation);
 
-        // Bỏ ẩn hội thoại khi có tin nhắn mới
         List<ConversationParticipant> participants = participantRepository.findByConversationId(conversation.getId());
         for (ConversationParticipant p : participants) {
             if (p.isHidden()) p.setHidden(false); 
@@ -161,7 +160,6 @@ public class ChatServiceImpl implements ChatService {
         MessageResponse response = mapToSafeMessageResponse(message);
         messagingTemplate.convertAndSend("/topic/chat." + conversation.getId(), response);
 
-        // Logic Notification
         if (conversation.getBoxId() == null && receiverId != null) {
             if (!userPresenceService.isUserOnline(receiverId)) {
                 ConversationParticipant receiverParticipant = participantRepository.findByConversationIdAndUserId(conversation.getId(), receiverId).orElse(null);
@@ -220,7 +218,6 @@ public class ChatServiceImpl implements ChatService {
 
         String nextCursor = messages.isEmpty() ? null : messages.get(messages.size() - 1).getId();
 
-        // Sử dụng Hàm Helper an toàn
         List<MessageResponse> data = messages.stream()
                 .map(this::mapToSafeMessageResponse)
                 .collect(Collectors.toList());
@@ -245,10 +242,14 @@ public class ChatServiceImpl implements ChatService {
         if (!msg.getSender().getId().equals(userId)) {
             throw new BadRequestException("Bạn chỉ có thể thu hồi tin nhắn của chính mình");
         }
+        
         msg.setDeleted(true);
+        // [FIX LỖI KẸT CẢM XÚC]: Xoá cứng toàn bộ reactions thuộc tin nhắn này trong Database
+        msg.getReactions().clear(); 
+        
         messageRepository.save(msg);
 
-        // Sử dụng Hàm Helper an toàn
+        // Socket sẽ tự cập nhật DTO sạch sẽ (không còn reaction/metadata) về Client 
         MessageResponse response = mapToSafeMessageResponse(msg);
         messagingTemplate.convertAndSend("/topic/chat." + msg.getConversation().getId(), response);
     }
@@ -273,7 +274,6 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        // Sử dụng Hàm Helper an toàn
         MessageResponse response = mapToSafeMessageResponse(msg);
         messagingTemplate.convertAndSend("/topic/chat." + msg.getConversation().getId(), response);
 
@@ -302,7 +302,6 @@ public class ChatServiceImpl implements ChatService {
 
         messageRepository.save(msg);
 
-        // Sử dụng Hàm Helper an toàn
         MessageResponse response = mapToSafeMessageResponse(msg);
         messagingTemplate.convertAndSend("/topic/chat." + msg.getConversation().getId(), response);
         return response;
@@ -312,11 +311,9 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public MessageResponse togglePinMessage(String messageId, String userId) {
         Message msg = messageRepository.findById(messageId).orElseThrow(() -> new ResourceNotFoundException("Message not found"));
-        // Lật trạng thái ghim
         msg.setPinned(!msg.isPinned());
         messageRepository.save(msg);
 
-        // Sử dụng Hàm Helper an toàn (Đã fix lỗi bị mất ghim)
         MessageResponse response = mapToSafeMessageResponse(msg);
         messagingTemplate.convertAndSend("/topic/chat." + msg.getConversation().getId(), response);
         
@@ -437,12 +434,10 @@ public class ChatServiceImpl implements ChatService {
     public ConversationResponse getOrCreateConversation(String senderId, String receiverId) { 
         List<Conversation> existingConvs = conversationRepository.findByUsers(senderId, receiverId);
         
-        // [SỬA BUG 4] Nếu đã từng chat, VẪN TRẢ VỀ DỮ LIỆU ĐỂ XEM LẠI LỊCH SỬ kể cả khi đang chặn nhau
         if (!existingConvs.isEmpty()) {
             return mapToConversationResponse(existingConvs.get(0), senderId);
         }
         
-        // Chỉ ném lỗi cấm tạo phòng CHỈ KHI chưa từng chat bao giờ
         if (userBlockService.isBlocked(receiverId, senderId) || userBlockService.isBlocked(senderId, receiverId)) {
             throw new BadRequestException("Không thể bắt đầu cuộc trò chuyện với người đã chặn.");
         }

@@ -108,7 +108,8 @@ public class NotificationDispatchService {
     }
 
     private boolean isDndActive(UserSettings settings, String userTimezone) {
-        if (settings.getDndEnabled() == null || !settings.getDndEnabled()) return false;
+        // [FIX] Xử lý an toàn cho kiểu Boolean (đối tượng)
+        if (!Boolean.TRUE.equals(settings.getDndEnabled())) return false;
 
         String tz = (userTimezone != null && !userTimezone.isBlank()) ? userTimezone : "Asia/Ho_Chi_Minh";
         int currentHour;
@@ -118,6 +119,7 @@ public class NotificationDispatchService {
             currentHour = LocalTime.now(ZoneId.of("Asia/Ho_Chi_Minh")).getHour();
         }
 
+        // [FIX] Xử lý an toàn cho Integer object
         int start = settings.getDndStartHour() != null ? settings.getDndStartHour() : 22;
         int end = settings.getDndEndHour() != null ? settings.getDndEndHour() : 6;
 
@@ -141,14 +143,15 @@ public class NotificationDispatchService {
     }
 
     private boolean isCategoryTypeAllowed(UserSettings settings, NotificationType type) {
+        // [FIX] Xử lý an toàn NullPointerException khi check Boolean
         return switch (type) {
-            case COMMENT, MOOD_COMMENT_RECEIVED -> settings.isInAppComment() || settings.isPushComment() || settings.isPushNewComment() || settings.isEmailComment();
-            case REACTION -> settings.isInAppReaction() || settings.isPushReaction() || settings.isEmailReaction();
-            case FRIEND_REQUEST -> settings.isInAppFriendRequest() || settings.isPushFriendRequestCategory() || settings.isPushFriendRequest() || settings.isEmailFriendRequest();
-            case BOX_INVITE -> settings.isInAppBoxInvite() || settings.isPushBoxInvite() || settings.isEmailBoxInvite();
-            case JOURNEY_INVITE -> settings.isInAppJourney() || settings.isPushJourney() || settings.isPushJourneyInvite() || settings.isEmailJourney();
-            case COMMENT_MENTIONED, MOOD_MENTIONED -> settings.isInAppMention() || settings.isPushMention() || settings.isEmailMention();
-            case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> settings.isInAppMessage() || settings.isPushMessage() || settings.isEmailMessage();
+            case COMMENT, MOOD_COMMENT_RECEIVED -> Boolean.TRUE.equals(settings.getInAppComment()) || Boolean.TRUE.equals(settings.getPushComment()) || Boolean.TRUE.equals(settings.getPushNewComment()) || Boolean.TRUE.equals(settings.getEmailComment());
+            case REACTION -> Boolean.TRUE.equals(settings.getInAppReaction()) || Boolean.TRUE.equals(settings.getPushReaction()) || Boolean.TRUE.equals(settings.getEmailReaction());
+            case FRIEND_REQUEST -> Boolean.TRUE.equals(settings.getInAppFriendRequest()) || Boolean.TRUE.equals(settings.getPushFriendRequestCategory()) || Boolean.TRUE.equals(settings.getPushFriendRequest()) || Boolean.TRUE.equals(settings.getEmailFriendRequest());
+            case BOX_INVITE -> Boolean.TRUE.equals(settings.getInAppBoxInvite()) || Boolean.TRUE.equals(settings.getPushBoxInvite()) || Boolean.TRUE.equals(settings.getEmailBoxInvite());
+            case JOURNEY_INVITE -> Boolean.TRUE.equals(settings.getInAppJourney()) || Boolean.TRUE.equals(settings.getPushJourney()) || Boolean.TRUE.equals(settings.getPushJourneyInvite()) || Boolean.TRUE.equals(settings.getEmailJourney());
+            case COMMENT_MENTIONED, MOOD_MENTIONED -> Boolean.TRUE.equals(settings.getInAppMention()) || Boolean.TRUE.equals(settings.getPushMention()) || Boolean.TRUE.equals(settings.getEmailMention());
+            case DM_NEW_MESSAGE, BOXCHAT_NEW_MESSAGE -> Boolean.TRUE.equals(settings.getInAppMessage()) || Boolean.TRUE.equals(settings.getPushMessage()) || Boolean.TRUE.equals(settings.getEmailMessage());
             default -> true;
         };
     }

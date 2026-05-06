@@ -21,116 +21,119 @@ public class UserSettings extends BaseEntity {
 
     @Column(name = "email_daily_reminder")
     @Builder.Default
-    private boolean emailDailyReminder = true;
+    private Boolean emailDailyReminder = true;
 
     @Column(name = "email_updates")
     @Builder.Default
-    private boolean emailUpdates = true;
+    private Boolean emailUpdates = true;
 
     @Column(name = "push_friend_request")
     @Builder.Default
-    private boolean pushFriendRequest = true;
+    private Boolean pushFriendRequest = true;
 
     @Column(name = "push_new_comment")
     @Builder.Default
-    private boolean pushNewComment = true;
+    private Boolean pushNewComment = true;
 
     @Column(name = "push_journey_invite")
     @Builder.Default
-    private boolean pushJourneyInvite = true;
+    private Boolean pushJourneyInvite = true;
 
     @Column(name = "push_reaction")
     @Builder.Default
-    private boolean pushReaction = true;
+    private Boolean pushReaction = true;
 
     @Column(name = "push_message")
     @Builder.Default
-    private boolean pushMessage = true;
+    private Boolean pushMessage = true;
 
     @Column(name = "push_mention")
     @Builder.Default
-    private boolean pushMention = true;
+    private Boolean pushMention = true;
 
     @Column(name = "push_box_invite")
     @Builder.Default
-    private boolean pushBoxInvite = true;
+    private Boolean pushBoxInvite = true;
 
     @Column(nullable = false, columnDefinition = "boolean default true")
-    private boolean emailEnabled = true;
+    @Builder.Default
+    private Boolean emailEnabled = true;
 
     @Column(nullable = false, columnDefinition = "boolean default true")
-    private boolean inAppEnabled = true;
+    @Builder.Default
+    private Boolean inAppEnabled = true;
 
     @Column(nullable = false, columnDefinition = "boolean default true")
-    private boolean pushEnabled = true;
+    @Builder.Default
+    private Boolean pushEnabled = true;
 
     @Column(name = "in_app_comment")
     @Builder.Default
-    private boolean inAppComment = true;
+    private Boolean inAppComment = true;
 
     @Column(name = "in_app_reaction")
     @Builder.Default
-    private boolean inAppReaction = true;
+    private Boolean inAppReaction = true;
 
     @Column(name = "in_app_message")
     @Builder.Default
-    private boolean inAppMessage = true;
+    private Boolean inAppMessage = true;
 
     @Column(name = "in_app_journey")
     @Builder.Default
-    private boolean inAppJourney = true;
+    private Boolean inAppJourney = true;
 
     @Column(name = "in_app_friend_request")
     @Builder.Default
-    private boolean inAppFriendRequest = true;
+    private Boolean inAppFriendRequest = true;
 
     @Column(name = "in_app_box_invite")
     @Builder.Default
-    private boolean inAppBoxInvite = true;
+    private Boolean inAppBoxInvite = true;
 
     @Column(name = "in_app_mention")
     @Builder.Default
-    private boolean inAppMention = true;
+    private Boolean inAppMention = true;
 
     @Column(name = "push_comment")
     @Builder.Default
-    private boolean pushComment = true;
+    private Boolean pushComment = true;
 
     @Column(name = "push_journey")
     @Builder.Default
-    private boolean pushJourney = true;
+    private Boolean pushJourney = true;
 
     @Column(name = "push_friend_request_category")
     @Builder.Default
-    private boolean pushFriendRequestCategory = true;
+    private Boolean pushFriendRequestCategory = true;
 
     @Column(name = "email_comment")
     @Builder.Default
-    private boolean emailComment = false;
+    private Boolean emailComment = false;
 
     @Column(name = "email_reaction")
     @Builder.Default
-    private boolean emailReaction = false;
+    private Boolean emailReaction = false;
 
     @Column(name = "email_message")
     @Builder.Default
-    private boolean emailMessage = false;
+    private Boolean emailMessage = false;
 
     @Column(name = "email_journey")
     @Builder.Default
-    private boolean emailJourney = true;
+    private Boolean emailJourney = true;
 
     @Column(name = "email_friend_request")
     @Builder.Default
-    private boolean emailFriendRequest = true;
+    private Boolean emailFriendRequest = true;
 
     @Column(name = "email_box_invite")
     @Builder.Default
-    private boolean emailBoxInvite = true;
+    private Boolean emailBoxInvite = true;
 
     @Column(name = "email_mention")
     @Builder.Default
-    private boolean emailMention = false;
+    private Boolean emailMention = false;
 
     @Column(name = "dnd_enabled", columnDefinition = "boolean default false")
     @Builder.Default

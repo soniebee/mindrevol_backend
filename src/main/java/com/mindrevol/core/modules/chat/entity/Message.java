@@ -35,9 +35,6 @@ public class Message extends BaseEntity {
     @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    // [ĐÃ XÓA] receiver_id vì tin nhắn nhóm không gửi cho cá nhân cụ thể
-    // Nếu muốn lưu người nhận cụ thể (DM), hệ thống dựa vào ConversationParticipant
-
     @Column(columnDefinition = "TEXT")
     private String content;
 
@@ -60,7 +57,6 @@ public class Message extends BaseEntity {
     @Column(name = "reply_to_msg_id")
     private String replyToMsgId;
 
-    // [THÊM MỚI] Liên kết Reactions
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<MessageReaction> reactions = new ArrayList<>();
